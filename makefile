@@ -39,6 +39,11 @@ package-src:: clean quick-integtest checkstyle pre-release cpy-plugins finalize
 
 finalize:: build-tests copy-package-dep
 
+
+bzero-release:: clean checkstyle pre-release build prepack bzero-package
+
+bzero-package:: create-package-folder package-rpm package-deb
+
 .PHONY: dev-build-linux
 dev-build-linux: clean quick-integtest checkstyle pre-release build-linux
 .PHONY: dev-build-freebsd

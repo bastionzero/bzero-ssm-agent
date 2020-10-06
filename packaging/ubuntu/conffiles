@@ -1,4 +1,4 @@
-/etc/init/amazon-ssm-agent.conf
-/etc/amazon/ssm/amazon-ssm-agent.json
-/etc/amazon/ssm/seelog.xml
-/lib/systemd/system/amazon-ssm-agent.service
+/etc/init/bzero-ssm-agent.conf
+/etc/bzero/ssm/amazon-ssm-agent.json
+/etc/bzero/ssm/seelog.xml
+/lib/systemd/system/bzero-ssm-agent.service
