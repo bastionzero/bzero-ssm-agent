@@ -7,9 +7,9 @@
     </exceptions>
     <outputs formatid="fmtinfo">
         <console formatid="fmtinfo"/>
-        <rollingfile type="size" filename="/var/log/amazon/ssm/amazon-ssm-agent.log" maxsize="30000000" maxrolls="5"/>
+        <rollingfile type="size" filename="/var/log/bzero/ssm/amazon-ssm-agent.log" maxsize="30000000" maxrolls="5"/>
         <filter levels="error,critical" formatid="fmterror">
-            <rollingfile type="size" filename="/var/log/amazon/ssm/errors.log" maxsize="10000000" maxrolls="5"/>
+            <rollingfile type="size" filename="/var/log/bzero/ssm/errors.log" maxsize="10000000" maxrolls="5"/>
         </filter>
     </outputs>
     <formats>

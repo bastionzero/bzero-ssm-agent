@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	DefaultLogDir = "/var/log/amazon/ssm"
+	DefaultLogDir = "/var/log/bzero/ssm"
 )
 
 // DefaultSeelogConfigFilePath specifies the default seelog location

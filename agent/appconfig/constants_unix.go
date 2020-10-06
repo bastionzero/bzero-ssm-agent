@@ -28,7 +28,7 @@ import (
 const (
 
 	// AgentExtensions specified the root folder for various kinds of downloaded content
-	AgentData = "/var/lib/amazon/ssm/"
+	AgentData = "/var/lib/bzero/ssm/"
 
 	// PackageRoot specifies the directory under which packages will be downloaded and installed
 	PackageRoot = AgentData + "packages"
@@ -61,10 +61,10 @@ const (
 	DefaultDataStorePath = AgentData
 
 	// EC2ConfigDataStorePath represents the directory for storing ec2 config data
-	EC2ConfigDataStorePath = "/var/lib/amazon/ec2config/"
+	EC2ConfigDataStorePath = "/var/lib/bzero/ec2config/"
 
 	// EC2ConfigSettingPath represents the directory for storing ec2 config settings
-	EC2ConfigSettingPath = "/var/lib/amazon/ec2configservice/"
+	EC2ConfigSettingPath = "/var/lib/bzero/ec2configservice/"
 
 	// UpdaterArtifactsRoot represents the directory for storing update related information
 	UpdaterArtifactsRoot = AgentData + "update/"
@@ -112,13 +112,13 @@ const (
 var PowerShellPluginCommandName string
 
 // DefaultProgramFolder is the default folder for SSM
-var DefaultProgramFolder = "/etc/amazon/ssm/"
+var DefaultProgramFolder = "/etc/bzero/ssm/"
 
 var defaultWorkerPath = "/usr/bin/"
-var DefaultSSMAgentWorker = defaultWorkerPath + "ssm-agent-worker"
-var DefaultDocumentWorker = defaultWorkerPath + "ssm-document-worker"
-var DefaultSessionWorker = defaultWorkerPath + "ssm-session-worker"
-var DefaultSessionLogger = defaultWorkerPath + "ssm-session-logger"
+var DefaultSSMAgentWorker = defaultWorkerPath + "bzero-ssm-agent-worker"
+var DefaultDocumentWorker = defaultWorkerPath + "bzero-ssm-document-worker"
+var DefaultSessionWorker = defaultWorkerPath + "bzero-ssm-session-worker"
+var DefaultSessionLogger = defaultWorkerPath + "bzero-ssm-session-logger"
 
 // AppConfigPath is the path of the AppConfig
 var AppConfigPath = DefaultProgramFolder + AppConfigFileName

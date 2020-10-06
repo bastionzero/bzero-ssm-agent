@@ -1,35 +1,33 @@
-Name         : amazon-ssm-agent
+Name         : bzero-ssm-agent
 Version      : %rpmversion
 Release      : 1
-Summary      : Manage EC2 Instances using SSM APIs
+Summary      : Modified Amazon SSM Agent for use with bastionzero.com
 
-Group        : Amazon/Tools
 License      : Apache License, Version 2.0
-URL          : http://docs.aws.amazon.com/ssm/latest/APIReference/Welcome.html
 
-Packager     : Amazon.com, Inc. <http://aws.amazon.com>
-Vendor       : Amazon.com
+Packager     : Commonwealth Crypto, Inc.
+Vendor       : Commonwealth Crypto, Inc.
 
 %description
-This package provides Amazon SSM Agent for managing EC2 Instances using SSM APIs
+This package provides a modified Amazon SSM Agent for use with bastionzero.com
 
 %files
 %defattr(-,root,root,-)
-/etc/amazon/ssm/amazon-ssm-agent.json.template
-/etc/amazon/ssm/seelog.xml.template
-/usr/bin/amazon-ssm-agent
-/usr/bin/ssm-agent-worker
-/usr/bin/ssm-cli
-/usr/bin/ssm-document-worker
-/usr/bin/ssm-session-worker
-/usr/bin/ssm-session-logger
-/var/lib/amazon/ssm/
-%doc /etc/amazon/ssm/RELEASENOTES.md
-%doc /etc/amazon/ssm/README.md
-%doc /etc/amazon/ssm/NOTICE.md
+/etc/bzero/ssm/amazon-ssm-agent.json.template
+/etc/bzero/ssm/seelog.xml.template
+/usr/bin/bzero-ssm-agent
+/usr/bin/bzero-ssm-agent-worker
+/usr/bin/bzero-ssm-cli
+/usr/bin/bzero-ssm-document-worker
+/usr/bin/bzero-ssm-session-worker
+/usr/bin/bzero-ssm-session-logger
+/var/lib/bzero/ssm/
+%doc /etc/bzero/ssm/RELEASENOTES.md
+%doc /etc/bzero/ssm/README.md
+%doc /etc/bzero/ssm/NOTICE.md
 
-%config(noreplace) /etc/init/amazon-ssm-agent.conf
-%config(noreplace) /etc/systemd/system/amazon-ssm-agent.service
+%config(noreplace) /etc/init/bzero-ssm-agent.conf
+%config(noreplace) /etc/systemd/system/bzero-ssm-agent.service
 
 # The scriptlets in %pre and %post are run before and after a package is installed.
 # The scriptlets %preun and %postun are run before and after a package is uninstalled.
@@ -46,9 +44,9 @@ This package provides Amazon SSM Agent for managing EC2 Instances using SSM APIs
 if [ $1 -ge 2 ]; then
     /sbin/init --version &> stdout.txt
     if [[ `cat stdout.txt` =~ upstart ]]; then
-        /sbin/stop amazon-ssm-agent
+        /sbin/stop bzero-ssm-agent
     elif [[ `systemctl` =~ -\.mount ]]; then
-        systemctl stop amazon-ssm-agent
+        systemctl stop bzero-ssm-agent
         systemctl daemon-reload
     fi
     rm stdout.txt
@@ -59,11 +57,11 @@ fi
 if [ $1 -eq 0 ] ; then
     /sbin/init --version &> stdout.txt
     if [[ `cat stdout.txt` =~ upstart ]]; then
-        /sbin/stop amazon-ssm-agent
+        /sbin/stop bzero-ssm-agent
         sleep 1
     elif [[ `systemctl` =~ -\.mount ]]; then
-        systemctl stop amazon-ssm-agent
-        systemctl disable amazon-ssm-agent
+        systemctl stop bzero-ssm-agent
+        systemctl disable bzero-ssm-agent
         systemctl daemon-reload
     fi
     rm stdout.txt
@@ -74,10 +72,10 @@ fi
 if [[ $1 -ge 0 ]]; then
     /sbin/init --version &> stdout.txt
     if [[ `cat stdout.txt` =~ upstart ]]; then
-        /sbin/start amazon-ssm-agent
+        /sbin/start bzero-ssm-agent
     elif [[ `systemctl` =~ -\.mount ]]; then
-        systemctl enable amazon-ssm-agent
-        systemctl start amazon-ssm-agent
+        systemctl enable bzero-ssm-agent
+        systemctl start bzero-ssm-agent
         systemctl daemon-reload
     fi
     rm stdout.txt
