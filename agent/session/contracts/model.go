@@ -259,6 +259,10 @@ const (
 	EncChallengeRequest  PayloadType = 8
 	EncChallengeResponse PayloadType = 9
 	Flag                 PayloadType = 10
+	Syn                  PayloadType = 11
+	SynAck               PayloadType = 12
+	Data                 PayloadType = 13
+	DataAck              PayloadType = 14
 )
 
 type PayloadTypeFlag uint32
@@ -365,3 +369,70 @@ type HandshakeCompletePayload struct {
 
 // ErrHandlerNotReady message indicates that the session plugin's incoming message handler is not ready
 var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting incoming packet")
+
+//Keysplitting Type Definitions
+type KeysplittingMessageType string
+
+const (
+	Syn     KeysplittingMessageType = "SYN"
+	SynAck  KeysplittingMessageType = "SYN/ACK"
+	Data    KeysplittingMessageType = "DATA"
+	DataAck KeysplittingMessageType = "DATA/ACK"
+)
+
+type KeysplittingAction string
+
+const (
+	SshOpen  KeysplittingAction = "ssh/open"
+	SshClose KeysplittingAction = "ssh/close"
+)
+
+// BZEcert type for parsing client's certificate
+type BZEcert struct {
+	SSO_com          string `json:"SSO_com"`
+	SSO_id           string `json:"SSO_id"`
+	ClientPublicKey  string `json:"ClientPublicKey"`
+	CERrand          string `json:"CERrand"`
+	CERrandSignature string `json:"CERrandSignature"`
+}
+
+// SynPayload for client Syn packets
+type SynPayload struct {
+	Type            KeysplittingMessageType `json:"Type"`
+	Action          KeysplittingAction      `json:"Action"`
+	Nonce           string                  `json:"Nonce"`
+	TargetID        string                  `json:"Type"`
+	BZEcert         BZEcert                 `json:"BZEcert"`
+	ClientSignature string                  `json:"ClientSignature"`
+}
+
+// SynAckPayload for target SynAck packets
+type SynAckPayload struct {
+	Type            KeysplittingMessageType `json:"Type"`
+	Action          KeysplittingAction      `json:"Action"`
+	Nonce           string                  `json:"Nonce"`
+	HPointer        string                  `json:"HPointer"`
+	TargetPublicKey string                  `json:"TargetPublicKey"`
+	TargetSignature string                  `json:"TargetSignature"`
+}
+
+// DataPayload for client Data packets
+type DataPayload struct {
+	Type            KeysplittingMessageType `json:"Type"`
+	Action          KeysplittingAction      `json:"Action"`
+	TargetID        string                  `json:"Type"`
+	HPointer        string                  `json:"HPointer"`
+	Payload         []byte                  `json:"Payload"`
+	BZEcertHash     string                  `json:"BZEcert"`
+	ClientSignature string                  `json:"ClientSignature"`
+}
+
+// DataAckPayload for target DataAck packets
+type DataAckPayload struct {
+	Type            KeysplittingMessageType `json:"Type"`
+	Action          KeysplittingAction      `json:"Action"`
+	HPointer        string                  `json:"HPointer"`
+	Payload         []byte                  `json:"Payload"`
+	TargetPublicKey string                  `json:"TargetPublicKey"`
+	TargetSignature string                  `json:"TargetSignature"`
+}
