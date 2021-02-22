@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/aws/amazon-ssm-agent/agent/context"
+	"github.com/aws/amazon-ssm-agent/agent/keysplitting"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/rip"
 	"github.com/aws/amazon-ssm-agent/agent/session/communicator"
@@ -59,6 +60,7 @@ type IDataChannel interface {
 	SendMessage(log log.T, input []byte, inputType int) error
 	SendStreamDataMessage(log log.T, dataType mgsContracts.PayloadType, inputData []byte) error
 	ResendStreamDataMessageScheduler(log log.T) error
+	SendSynAckMessage(log log.T, action string, nonce [32]byte, hash [32]byte) error
 	ProcessAcknowledgedMessage(log log.T, acknowledgeMessageContent mgsContracts.AcknowledgeContent)
 	SendAcknowledgeMessage(log log.T, agentMessage mgsContracts.AgentMessage) error
 	SendAgentSessionStateMessage(log log.T, sessionStatus mgsContracts.SessionStatus) error
@@ -492,6 +494,32 @@ func (dataChannel *DataChannel) ProcessAcknowledgedMessage(log log.T, acknowledg
 			break
 		}
 	}
+}
+
+func (dataChannel *DataChannel) SendSynAckMessage(log log.T, action string, nonce [32]byte, hash [32]byte) error {
+	synAckContent := &mgsContracts.SynAckPayload{
+		Type:            "SYNACK",
+		Action:          action,
+		Nonce:           nonce,
+		HPointer:        hash,
+		TargetPublicKey: keysplitting.TargetPublicKey,
+		Signature:       "thisisatargetsignature",
+	}
+
+	// I can move this to the model file since that's where the serialize and deserialization of other types of payloads
+	// are but I don't know how to generalize it for all of the payloads and I'm on a time crunch I didn't think it was a
+	// big deal to just put it here since it's not that much code
+	synAckContentBytes, err := json.Marshal(synAckContent)
+	if err != nil {
+		return fmt.Errorf("Could not serialize SynAck message: %v, err: %s", synAckContent, err)
+	}
+
+	log.Tracef("Send SynAck message: %d", synAckContent)
+	if err := dataChannel.sendAgentMessage(log, mgsContracts.AcknowledgeMessage, synAckContentBytes); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SendAcknowledgeMessage sends acknowledge message for stream data over data channel
