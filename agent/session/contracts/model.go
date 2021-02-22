@@ -371,68 +371,62 @@ type HandshakeCompletePayload struct {
 var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting incoming packet")
 
 //Keysplitting Type Definitions
-type KeysplittingMessageType string
 
-const (
-	Syn     KeysplittingMessageType = "SYN"
-	SynAck  KeysplittingMessageType = "SYN/ACK"
-	Data    KeysplittingMessageType = "DATA"
-	DataAck KeysplittingMessageType = "DATA/ACK"
-)
+// type KeysplittingAction string
 
-type KeysplittingAction string
-
-const (
-	SshOpen  KeysplittingAction = "ssh/open"
-	SshClose KeysplittingAction = "ssh/close"
-)
+// // This will help us fix and control the defined actions any user can take
+// const (
+// 	SshOpen  KeysplittingAction = "ssh/open"
+// 	SshClose KeysplittingAction = "ssh/close"
+// )
 
 // BZEcert type for parsing client's certificate
 type BZEcert struct {
-	SSO_com          string `json:"SSO_com"`
-	SSO_id           string `json:"SSO_id"`
-	ClientPublicKey  string `json:"ClientPublicKey"`
-	CERrand          string `json:"CERrand"`
-	CERrandSignature string `json:"CERrandSignature"`
+	SSO_com          string   `json:"SSO_com"`
+	SSO_id           string   `json:"SSO_id"`
+	ClientPublicKey  string   `json:"ClientPublicKey"`
+	CERrand          [32]byte `json:"CERrand"`
+	CERrandSignature string   `json:"CERrandSignature"`
 }
 
 // SynPayload for client Syn packets
 type SynPayload struct {
-	Type            KeysplittingMessageType `json:"Type"`
-	Action          KeysplittingAction      `json:"Action"`
-	Nonce           string                  `json:"Nonce"`
-	TargetID        string                  `json:"Type"`
-	BZEcert         BZEcert                 `json:"BZEcert"`
-	ClientSignature string                  `json:"ClientSignature"`
+	Type     string   `json:"Type"`
+	Action   string   `json:"Action"`
+	Nonce    [32]byte `json:"Nonce"`
+	TargetID string   `json:"Type"`
+	// This will be of type BZEcert eventually
+	BZEcert   string `json:"BZEcert"`
+	Signature string `json:"ClientSignature"`
 }
 
 // SynAckPayload for target SynAck packets
 type SynAckPayload struct {
-	Type            KeysplittingMessageType `json:"Type"`
-	Action          KeysplittingAction      `json:"Action"`
-	Nonce           string                  `json:"Nonce"`
-	HPointer        string                  `json:"HPointer"`
-	TargetPublicKey string                  `json:"TargetPublicKey"`
-	TargetSignature string                  `json:"TargetSignature"`
+	Type            string   `json:"Type"`
+	Action          string   `json:"Action"`
+	Nonce           [32]byte `json:"Nonce"`
+	HPointer        [32]byte `json:"HPointer"`
+	TargetPublicKey string   `json:"TargetPublicKey"`
+	Signature       string   `json:"TargetSignature"`
 }
 
 // DataPayload for client Data packets
 type DataPayload struct {
-	Type            KeysplittingMessageType `json:"Type"`
-	Action          KeysplittingAction      `json:"Action"`
-	TargetID        string                  `json:"Type"`
-	HPointer        string                  `json:"HPointer"`
-	Payload         []byte                  `json:"Payload"`
-	BZEcertHash     string                  `json:"BZEcert"`
-	ClientSignature string                  `json:"ClientSignature"`
+	Type        string   `json:"Type"`
+	Action      string   `json:"Action"`
+	TargetID    string   `json:"Type"`
+	HPointer    [32]byte `json:"HPointer"`
+	Payload     []byte   `json:"Payload"`
+	BZEcertHash string   `json:"BZEcert"`
+	Signature   string   `json:"ClientSignature"`
 }
 
 // DataAckPayload for target DataAck packets
 type DataAckPayload struct {
-	Type            KeysplittingMessageType `json:"Type"`
-	Action          KeysplittingAction      `json:"Action"`
-	HPointer        string                  `json:"HPointer"`
-	Payload         []byte                  `json:"Payload"`
-	TargetPublicKey string                  `json:"TargetPublicKey"`
-	TargetSignature string                  `json:"TargetSignature"`
+	Type            string   `json:"Type"`
+	Action          string   `json:"Action"`
+	HPointer        [32]byte `json:"HPointer"`
+	Payload         []byte   `json:"Payload"`
+	TargetPublicKey string   `json:"TargetPublicKey"`
+	Signature       string   `json:"TargetSignature"`
 }

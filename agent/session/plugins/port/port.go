@@ -15,6 +15,7 @@
 package port
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,7 @@ import (
 	agentContracts "github.com/aws/amazon-ssm-agent/agent/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler"
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
+	"github.com/aws/amazon-ssm-agent/agent/keysplitting"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	mgsConfig "github.com/aws/amazon-ssm-agent/agent/session/config"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
@@ -48,6 +50,8 @@ type PortPlugin struct {
 	dataChannel datachannel.IDataChannel
 	cancelled   chan struct{}
 	session     IPortSession
+	bzecerts    map[[32]byte]string
+	hpointer    [32]byte
 }
 
 // IPortSession interface represents functions that need to be implemented by all port sessions
@@ -210,6 +214,48 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		log.Tracef("TCP connection unavailable. Reject incoming message packet")
 		return mgsContracts.ErrHandlerNotReady
 	}
+
+	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
+
+	case mgsContracts.Syn:
+		{
+			var synpayload mgsContracts.SynPayload
+			if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
+				return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
+			}
+
+			// super legit bze and signature verification
+			if synpayload.BZEcert == "thisisabzecert" && synpayload.Signature == "thisisasignature" {
+				// Add bzecert to list of bzecerts
+				bzehash, err := keysplitting.Hash(synpayload.BZEcert)
+				if err != nil {
+					return fmt.Errorf("Error hashing BZEcert, %v.", synpayload.BZEcert)
+				}
+				p.bzecerts[bzehash] = synpayload.BZEcert
+
+				hash, err := keysplitting.HashPayload(synpayload)
+				if err != nil {
+					return fmt.Errorf("Error hashing payload, %v.", synpayload)
+				}
+
+				p.dataChannel.SendSynAckMessage(
+					log,
+					synpayload.Action,
+					keysplitting.GenerateNonce(p.hpointer),
+					hash,
+				)
+
+				p.hpointer = hash
+				return nil
+			}
+		}
+		// case mgsContracts.Data:
+		// 	{
+		// 		// to be implemented
+		// 		return nil
+		// 	}
+	}
+
 	return p.session.HandleStreamMessage(streamDataMessage)
 }
 
