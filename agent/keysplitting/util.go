@@ -48,7 +48,7 @@ func HashA(a interface{}) (string, error) {
 }
 
 // We need to be hashing messages without the signature so I need to figure this out
-func HashPayload(payload mgsContracts.SynPayload) (string, error) {
+func HashPayload(payload mgsContracts.SynPayloadPayload) (string, error) {
 	rawpayload, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("Error occurred while marshalling Synpayload json: %v", err)

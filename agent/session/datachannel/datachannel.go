@@ -497,13 +497,16 @@ func (dataChannel *DataChannel) ProcessAcknowledgedMessage(log log.T, acknowledg
 }
 
 func (dataChannel *DataChannel) SendSynAckMessage(log log.T, action string, nonce string, hash string) error {
-	synAckContent := &mgsContracts.SynAckPayload{
+	contentContent := mgsContracts.SynAckPayloadPayload{
 		Type:            "SYNACK",
 		Action:          action,
 		Nonce:           nonce,
 		HPointer:        hash,
 		TargetPublicKey: keysplitting.TargetPublicKey,
-		Signature:       "thisisatargetsignature",
+	}
+	synAckContent := &mgsContracts.SynAckPayload{
+		Payload:   contentContent,
+		Signature: "thisisatargetsignature",
 	}
 
 	// I can move this to the model file since that's where the serialize and deserialization of other types of payloads
