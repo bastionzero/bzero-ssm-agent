@@ -60,7 +60,7 @@ type IDataChannel interface {
 	SendMessage(log log.T, input []byte, inputType int) error
 	SendStreamDataMessage(log log.T, dataType mgsContracts.PayloadType, inputData []byte) error
 	ResendStreamDataMessageScheduler(log log.T) error
-	SendSynAckMessage(log log.T, action string, nonce [32]byte, hash [32]byte) error
+	SendSynAckMessage(log log.T, action string, nonce []byte, hash []byte) error
 	ProcessAcknowledgedMessage(log log.T, acknowledgeMessageContent mgsContracts.AcknowledgeContent)
 	SendAcknowledgeMessage(log log.T, agentMessage mgsContracts.AgentMessage) error
 	SendAgentSessionStateMessage(log log.T, sessionStatus mgsContracts.SessionStatus) error
@@ -496,7 +496,7 @@ func (dataChannel *DataChannel) ProcessAcknowledgedMessage(log log.T, acknowledg
 	}
 }
 
-func (dataChannel *DataChannel) SendSynAckMessage(log log.T, action string, nonce [32]byte, hash [32]byte) error {
+func (dataChannel *DataChannel) SendSynAckMessage(log log.T, action string, nonce []byte, hash []byte) error {
 	synAckContent := &mgsContracts.SynAckPayload{
 		Type:            "SYNACK",
 		Action:          action,
@@ -515,7 +515,9 @@ func (dataChannel *DataChannel) SendSynAckMessage(log log.T, action string, nonc
 	}
 
 	log.Tracef("Send SynAck message: %d", synAckContent)
-	if err := dataChannel.sendAgentMessage(log, mgsContracts.AcknowledgeMessage, synAckContentBytes); err != nil {
+	log.Debugf("Sending SYNACK message...")
+
+	if err := dataChannel.sendAgentMessage(log, mgsContracts.OutputStreamDataMessage, synAckContentBytes); err != nil {
 		return err
 	}
 

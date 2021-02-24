@@ -15,6 +15,7 @@
 package port
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,8 +51,8 @@ type PortPlugin struct {
 	dataChannel datachannel.IDataChannel
 	cancelled   chan struct{}
 	session     IPortSession
-	bzecerts    map[[32]byte]string
-	hpointer    [32]byte
+	bzecerts    map[string]string
+	hpointer    []byte
 }
 
 // IPortSession interface represents functions that need to be implemented by all port sessions
@@ -95,6 +96,7 @@ func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
 	var plugin = PortPlugin{
 		context:   context,
 		cancelled: make(chan struct{}),
+		bzecerts:  make(map[string]string),
 	}
 	return &plugin, nil
 }
@@ -208,30 +210,31 @@ func (p *PortPlugin) execute(
 
 // InputStreamMessageHandler passes payload byte stream to port
 func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error {
-	if p.session == nil || !p.session.IsConnectionAvailable() {
-		// This is to handle scenario when cli/console starts sending data but session has not been initialized yet
-		// Since packets are rejected, cli/console will resend these packets until tcp starts successfully in separate thread
-		log.Tracef("TCP connection unavailable. Reject incoming message packet")
-		return mgsContracts.ErrHandlerNotReady
-	}
 
 	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
 
 	case mgsContracts.Syn:
 		{
+			log.Debugf("Syn payload received: %v", string(streamDataMessage.Payload))
 			var synpayload mgsContracts.SynPayload
 			if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
 				return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
 			}
 
+			log.Debugf("SynPayload unmarshalled...")
+
 			// super legit bze and signature verification
-			if synpayload.BZEcert == "thisisabzecert" && synpayload.Signature == "thisisasignature" {
+			if synpayload.BZEcert == "thisisabzecert" {
+				log.Debugf("Checks on bzecert passed...")
 				// Add bzecert to list of bzecerts
-				bzehash, err := keysplitting.Hash(synpayload.BZEcert)
+				bzehash, err := keysplitting.HashA(synpayload.BZEcert)
 				if err != nil {
-					return fmt.Errorf("Error hashing BZEcert, %v.", synpayload.BZEcert)
+					return fmt.Errorf("Error hashing BZEcert: %v", err)
 				}
-				p.bzecerts[bzehash] = synpayload.BZEcert
+				hex := hex.EncodeToString(bzehash)
+				p.bzecerts[hex] = synpayload.BZEcert
+
+				log.Debugf("BZEcerts updated: %v: %v", hex, synpayload.BZEcert)
 
 				hash, err := keysplitting.HashPayload(synpayload)
 				if err != nil {
@@ -246,7 +249,12 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 				)
 
 				p.hpointer = hash
+
+				log.Debugf("SYNACK Message sent and hpointer updated")
+
 				return nil
+			} else {
+				return fmt.Errorf("BZEcert, %s, and Signature, %s, did not pass checks", synpayload.BZEcert, synpayload.Signature)
 			}
 		}
 		// case mgsContracts.Data:
@@ -256,7 +264,14 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		// 	}
 	}
 
-	return p.session.HandleStreamMessage(streamDataMessage)
+	if p.session == nil || !p.session.IsConnectionAvailable() {
+		// This is to handle scenario when cli/console starts sending data but session has not been initialized yet
+		// Since packets are rejected, cli/console will resend these packets until tcp starts successfully in separate thread
+		log.Tracef("TCP connection unavailable. Reject incoming message packet")
+		return mgsContracts.ErrHandlerNotReady
+	} else {
+		return p.session.HandleStreamMessage(streamDataMessage)
+	}
 }
 
 // Stop closes all opened connections to port

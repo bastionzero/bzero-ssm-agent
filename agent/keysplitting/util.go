@@ -18,43 +18,40 @@ const (
 
 // If this is the beginning of the hash chain, then we select a random value, otherwise
 // we use the hash of the previous value to maintain log immutability
-// return hex value ([32]byte)
-func GenerateNonce(hashpointer [32]byte) [32]byte {
-	if hashpointer != [32]byte{} {
-		b := make([]byte, 32) // 32 to make it same size as hash pointer
+func GenerateNonce(hashpointer []byte) []byte {
+	if hashpointer != nil {
+		b := make([]byte, 32) // 32 to make it same len as hash pointer
 		rand.Read(b)
 
-		var ret [32]byte
-		copy(ret[:], b)
-		return ret
+		return b
 	}
 
 	return hashpointer
 }
 
 // Function will accept any type of variable but will only hash strings or byte(s)
-func Hash(a interface{}) ([32]byte, error) {
+//
+func HashA(a interface{}) ([]byte, error) {
 	switch v := a.(type) {
 	case string:
 		b, _ := a.(string) // extra type assertion required to hash
-		return sha256.Sum256([]byte(b)), nil
+		hash := sha256.Sum256([]byte(b))
+		return hash[:], nil // This returns type [32]byte but we want a slice so we [:]
 	case []byte:
 		b, _ := a.([]byte)
-		return sha256.Sum256(b), nil
-	case [32]byte:
-		b, _ := a.([32]byte)
-		return sha256.Sum256([]byte(b[:])), nil
+		hash := sha256.Sum256(b)
+		return hash[:], nil
 	default:
-		return [32]byte{}, fmt.Errorf("Error only strings and bytes are hashable.  Provided type: %v", v)
+		return []byte{}, fmt.Errorf("Error only strings and bytes are hashable.  Provided type: %v", v)
 	}
 }
 
 // We need to be hashing messages without the signature so I need to figure this out
-func HashPayload(payload mgsContracts.SynPayload) ([32]byte, error) {
+func HashPayload(payload mgsContracts.SynPayload) ([]byte, error) {
 	rawpayload, err := json.Marshal(payload)
 	if err != nil {
-		return [32]byte{}, fmt.Errorf("Error occurred while marshalling Synpayload json: %v", err)
+		return []byte{}, fmt.Errorf("Error occurred while marshalling Synpayload json: %v", err)
 	}
 
-	return Hash(rawpayload)
+	return HashA(rawpayload)
 }
