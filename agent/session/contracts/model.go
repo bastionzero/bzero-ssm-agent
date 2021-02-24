@@ -381,7 +381,7 @@ var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting inc
 // )
 
 // BZEcert type for parsing client's certificate
-type BZEcert struct {
+type BZECert struct {
 	SSO_com          string `json:"SSO_com"`
 	SSO_id           string `json:"SSO_id"`
 	ClientPublicKey  string `json:"ClientPublicKey"`
@@ -395,7 +395,7 @@ type SynPayload struct {
 	Action    string `json:"Action"`
 	Nonce     string `json:"Nonce"`
 	TargetID  string `json:"Type"`
-	BZEcert   string `json:"BZEcert"` // This will be of type BZEcert eventually
+	BZEcert   string `json:"BZECert"` // This will be of type BZEcert eventually
 	Signature string `json:"Signature"`
 }
 
@@ -403,8 +403,8 @@ type SynPayload struct {
 type SynAckPayload struct {
 	Type            string `json:"Type"`
 	Action          string `json:"Action"`
-	Nonce           []byte `json:"Nonce"`
-	HPointer        []byte `json:"HPointer"`
+	Nonce           string `json:"Nonce"`
+	HPointer        string `json:"HPointer"`
 	TargetPublicKey string `json:"TargetPublicKey"`
 	Signature       string `json:"Signature"`
 }
@@ -413,10 +413,10 @@ type SynAckPayload struct {
 type DataPayload struct {
 	Type        string `json:"Type"`
 	Action      string `json:"Action"`
-	TargetID    string `json:"Type"`
-	HPointer    []byte `json:"HPointer"`
-	Payload     []byte `json:"Payload"`
-	BZEcertHash string `json:"BZEcert"`
+	TargetId    string `json:"TargetId"`
+	HPointer    string `json:"HPointer"`
+	Payload     string `json:"Payload"`
+	BZEcertHash string `json:"BZECert"`
 	Signature   string `json:"Signature"`
 }
 
@@ -424,8 +424,8 @@ type DataPayload struct {
 type DataAckPayload struct {
 	Type            string `json:"Type"`
 	Action          string `json:"Action"`
-	HPointer        []byte `json:"HPointer"`
-	Payload         []byte `json:"Payload"`
+	HPointer        string `json:"HPointer"`
+	Payload         string `json:"Payload"`
 	TargetPublicKey string `json:"TargetPublicKey"`
 	Signature       string `json:"Signature"`
 }
