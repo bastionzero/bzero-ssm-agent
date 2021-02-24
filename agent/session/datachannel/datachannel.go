@@ -60,7 +60,7 @@ type IDataChannel interface {
 	SendMessage(log log.T, input []byte, inputType int) error
 	SendStreamDataMessage(log log.T, dataType mgsContracts.PayloadType, inputData []byte) error
 	ResendStreamDataMessageScheduler(log log.T) error
-	SendSynAckMessage(log log.T, action string, nonce []byte, hash []byte) error
+	SendSynAckMessage(log log.T, action string, nonce string, hash string) error
 	ProcessAcknowledgedMessage(log log.T, acknowledgeMessageContent mgsContracts.AcknowledgeContent)
 	SendAcknowledgeMessage(log log.T, agentMessage mgsContracts.AgentMessage) error
 	SendAgentSessionStateMessage(log log.T, sessionStatus mgsContracts.SessionStatus) error
@@ -496,7 +496,7 @@ func (dataChannel *DataChannel) ProcessAcknowledgedMessage(log log.T, acknowledg
 	}
 }
 
-func (dataChannel *DataChannel) SendSynAckMessage(log log.T, action string, nonce []byte, hash []byte) error {
+func (dataChannel *DataChannel) SendSynAckMessage(log log.T, action string, nonce string, hash string) error {
 	synAckContent := &mgsContracts.SynAckPayload{
 		Type:            "SYNACK",
 		Action:          action,

@@ -15,7 +15,6 @@
 package port
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,7 +51,7 @@ type PortPlugin struct {
 	cancelled   chan struct{}
 	session     IPortSession
 	bzecerts    map[string]string
-	hpointer    []byte
+	hpointer    string
 }
 
 // IPortSession interface represents functions that need to be implemented by all port sessions
@@ -97,6 +96,7 @@ func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
 		context:   context,
 		cancelled: make(chan struct{}),
 		bzecerts:  make(map[string]string),
+		hpointer:  "",
 	}
 	return &plugin, nil
 }
@@ -224,17 +224,16 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			log.Debugf("SynPayload unmarshalled...")
 
 			// super legit bze and signature verification
-			if synpayload.BZEcert == "thisisabzecert" {
+			if synpayload.BZECert == "thisisabzecert" {
 				log.Debugf("Checks on bzecert passed...")
 				// Add bzecert to list of bzecerts
-				bzehash, err := keysplitting.HashA(synpayload.BZEcert)
+				bzehash, err := keysplitting.HashA(synpayload.BZECert)
 				if err != nil {
-					return fmt.Errorf("Error hashing BZEcert: %v", err)
+					return fmt.Errorf("Error hashing BZECert: %v", err)
 				}
-				hex := hex.EncodeToString(bzehash)
-				p.bzecerts[hex] = synpayload.BZEcert
+				p.bzecerts[bzehash] = synpayload.BZECert
 
-				log.Debugf("BZEcerts updated: %v: %v", hex, synpayload.BZEcert)
+				log.Debugf("BZEcerts updated: %v: %v", bzehash, synpayload.BZECert)
 
 				hash, err := keysplitting.HashPayload(synpayload)
 				if err != nil {
@@ -254,7 +253,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 				return nil
 			} else {
-				return fmt.Errorf("BZEcert, %s, and Signature, %s, did not pass checks", synpayload.BZEcert, synpayload.Signature)
+				return fmt.Errorf("BZEcert, %s, and Signature, %s, did not pass checks", synpayload.BZECert, synpayload.Signature)
 			}
 		}
 		// case mgsContracts.Data:
