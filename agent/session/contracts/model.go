@@ -382,51 +382,50 @@ var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting inc
 
 // BZEcert type for parsing client's certificate
 type BZEcert struct {
-	SSO_com          string   `json:"SSO_com"`
-	SSO_id           string   `json:"SSO_id"`
-	ClientPublicKey  string   `json:"ClientPublicKey"`
-	CERrand          [32]byte `json:"CERrand"`
-	CERrandSignature string   `json:"CERrandSignature"`
+	SSO_com          string `json:"SSO_com"`
+	SSO_id           string `json:"SSO_id"`
+	ClientPublicKey  string `json:"ClientPublicKey"`
+	CERrand          string `json:"CERrand"`
+	CERrandSignature string `json:"CERrandSignature"`
 }
 
 // SynPayload for client Syn packets
 type SynPayload struct {
-	Type     string   `json:"Type"`
-	Action   string   `json:"Action"`
-	Nonce    [32]byte `json:"Nonce"`
-	TargetID string   `json:"Type"`
-	// This will be of type BZEcert eventually
-	BZEcert   string `json:"BZEcert"`
-	Signature string `json:"ClientSignature"`
+	Type      string `json:"Type"`
+	Action    string `json:"Action"`
+	Nonce     string `json:"Nonce"`
+	TargetID  string `json:"Type"`
+	BZEcert   string `json:"BZEcert"` // This will be of type BZEcert eventually
+	Signature string `json:"Signature"`
 }
 
 // SynAckPayload for target SynAck packets
 type SynAckPayload struct {
-	Type            string   `json:"Type"`
-	Action          string   `json:"Action"`
-	Nonce           [32]byte `json:"Nonce"`
-	HPointer        [32]byte `json:"HPointer"`
-	TargetPublicKey string   `json:"TargetPublicKey"`
-	Signature       string   `json:"TargetSignature"`
+	Type            string `json:"Type"`
+	Action          string `json:"Action"`
+	Nonce           []byte `json:"Nonce"`
+	HPointer        []byte `json:"HPointer"`
+	TargetPublicKey string `json:"TargetPublicKey"`
+	Signature       string `json:"Signature"`
 }
 
 // DataPayload for client Data packets
 type DataPayload struct {
-	Type        string   `json:"Type"`
-	Action      string   `json:"Action"`
-	TargetID    string   `json:"Type"`
-	HPointer    [32]byte `json:"HPointer"`
-	Payload     []byte   `json:"Payload"`
-	BZEcertHash string   `json:"BZEcert"`
-	Signature   string   `json:"ClientSignature"`
+	Type        string `json:"Type"`
+	Action      string `json:"Action"`
+	TargetID    string `json:"Type"`
+	HPointer    []byte `json:"HPointer"`
+	Payload     []byte `json:"Payload"`
+	BZEcertHash string `json:"BZEcert"`
+	Signature   string `json:"Signature"`
 }
 
 // DataAckPayload for target DataAck packets
 type DataAckPayload struct {
-	Type            string   `json:"Type"`
-	Action          string   `json:"Action"`
-	HPointer        [32]byte `json:"HPointer"`
-	Payload         []byte   `json:"Payload"`
-	TargetPublicKey string   `json:"TargetPublicKey"`
-	Signature       string   `json:"TargetSignature"`
+	Type            string `json:"Type"`
+	Action          string `json:"Action"`
+	HPointer        []byte `json:"HPointer"`
+	Payload         []byte `json:"Payload"`
+	TargetPublicKey string `json:"TargetPublicKey"`
+	Signature       string `json:"Signature"`
 }
