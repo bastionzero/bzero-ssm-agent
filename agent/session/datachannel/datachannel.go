@@ -517,7 +517,7 @@ func (dataChannel *DataChannel) SendSynAckMessage(log log.T, action string, nonc
 	log.Tracef("Send SynAck message: %d", synAckContent)
 	log.Debugf("Sending SYNACK message...")
 
-	if err := dataChannel.sendAgentMessage(log, mgsContracts.OutputStreamDataMessage, synAckContentBytes); err != nil {
+	if err := dataChannel.sendAgentMessage(log, mgsContracts.OutputStreamDataMessage, synAckContentBytes, 12); err != nil {
 		return err
 	}
 
@@ -541,7 +541,7 @@ func (dataChannel *DataChannel) SendAcknowledgeMessage(log log.T, streamDataMess
 	}
 
 	log.Tracef("Send %s message for stream data: %d", mgsContracts.AcknowledgeMessage, streamDataMessage.SequenceNumber)
-	if err := dataChannel.sendAgentMessage(log, mgsContracts.AcknowledgeMessage, acknowledgeContentBytes); err != nil {
+	if err := dataChannel.sendAgentMessage(log, mgsContracts.AcknowledgeMessage, acknowledgeContentBytes, 0); err != nil {
 		return err
 	}
 	return nil
@@ -563,14 +563,14 @@ func (dataChannel *DataChannel) SendAgentSessionStateMessage(log log.T, sessionS
 	}
 
 	log.Tracef("Send %s message with session status %s", mgsContracts.AgentSessionState, string(sessionStatus))
-	if err := dataChannel.sendAgentMessage(log, mgsContracts.AgentSessionState, agentSessionStateContentBytes); err != nil {
+	if err := dataChannel.sendAgentMessage(log, mgsContracts.AgentSessionState, agentSessionStateContentBytes, 0); err != nil {
 		return err
 	}
 	return nil
 }
 
 // sendAgentMessage sends agent message for given messageType and content
-func (dataChannel *DataChannel) sendAgentMessage(log log.T, messageType string, messageContent []byte) error {
+func (dataChannel *DataChannel) sendAgentMessage(log log.T, messageType string, messageContent []byte, payloadType uint32) error {
 	uuid.SwitchFormat(uuid.CleanHyphen)
 	messageId := uuid.NewV4()
 	agentMessage := &mgsContracts.AgentMessage{
@@ -581,6 +581,7 @@ func (dataChannel *DataChannel) sendAgentMessage(log log.T, messageType string, 
 		Flags:          messageFlags,
 		MessageId:      messageId,
 		Payload:        messageContent,
+		PayloadType:    payloadType,
 	}
 
 	msg, err := agentMessage.Serialize(log)
