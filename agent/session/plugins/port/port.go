@@ -251,7 +251,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 				log.Debugf("SYNACK Message sent and hpointer updated")
 
-				return nil
+				return fmt.Errorf("SYNACK")
 			} else {
 				return fmt.Errorf("BZEcert, %s, and Signature, %s, did not pass checks", synpayload.BZECert, synpayload.Signature)
 			}
