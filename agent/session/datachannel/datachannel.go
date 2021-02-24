@@ -850,7 +850,11 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 		}
 
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
-			return err
+			if err == "SYNACK" {
+				dataChannel.ExpectedSequenceNumber++
+			} else {
+				return err
+			}
 		}
 	}
 
