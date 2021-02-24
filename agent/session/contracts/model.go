@@ -395,7 +395,7 @@ type SynPayload struct {
 	Action    string `json:"Action"`
 	Nonce     string `json:"Nonce"`
 	TargetID  string `json:"Type"`
-	BZEcert   string `json:"BZECert"` // This will be of type BZEcert eventually
+	BZECert   string `json:"BZECert"` // This will be of type BZEcert eventually
 	Signature string `json:"Signature"`
 }
 
