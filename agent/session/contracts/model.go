@@ -389,18 +389,27 @@ type BZECert struct {
 	CERrandSignature string `json:"CERrandSignature"`
 }
 
-// SynPayload for client Syn packets
 type SynPayload struct {
-	Type      string `json:"Type"`
-	Action    string `json:"Action"`
-	Nonce     string `json:"Nonce"`
-	TargetID  string `json:"Type"`
-	BZECert   string `json:"BZECert"` // This will be of type BZEcert eventually
-	Signature string `json:"Signature"`
+	Payload   SynPayloadPayload `json:"Payload"`
+	Signature string            `json:"Signature"`
+}
+
+// SynPayload for client Syn packets
+type SynPayloadPayload struct {
+	Type     string `json:"Type"`
+	Action   string `json:"Action"`
+	Nonce    string `json:"Nonce"`
+	TargetID string `json:"Type"`
+	BZECert  string `json:"BZECert"` // This will be of type BZEcert eventually
+}
+
+type SynAckPayload struct {
+	Payload   SynAckPayloadPayload `json:"Payload"`
+	Signature string               `json:"Signature"`
 }
 
 // SynAckPayload for target SynAck packets
-type SynAckPayload struct {
+type SynAckPayloadPayload struct {
 	Type            string `json:"Type"`
 	Action          string `json:"Action"`
 	Nonce           string `json:"Nonce"`
