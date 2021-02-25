@@ -14,7 +14,7 @@ This package provides a modified Amazon SSM Agent for use with bastionzero.com
 %files
 %defattr(-,root,root,-)
 /etc/bzero/ssm/amazon-ssm-agent.json.template
-/etc/bzero/ssm/seelog.xml.template
+/etc/bzero/ssm/seelog.xml
 /usr/bin/bzero-ssm-agent
 /usr/bin/bzero-ssm-agent-worker
 /usr/bin/bzero-ssm-cli
