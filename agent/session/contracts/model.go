@@ -389,12 +389,12 @@ type BZECert struct {
 	CERrandSignature string `json:"CERrandSignature"`
 }
 
+// SynPayload for client Syn packets
 type SynPayload struct {
 	Payload   SynPayloadPayload `json:"Payload"`
 	Signature string            `json:"Signature"`
 }
 
-// SynPayload for client Syn packets
 type SynPayloadPayload struct {
 	Type     string `json:"Type"`
 	Action   string `json:"Action"`
@@ -403,12 +403,12 @@ type SynPayloadPayload struct {
 	BZECert  string `json:"BZECert"` // This will be of type BZEcert eventually
 }
 
+// SynAckPayload for target SynAck packets
 type SynAckPayload struct {
 	Payload   SynAckPayloadPayload `json:"Payload"`
 	Signature string               `json:"Signature"`
 }
 
-// SynAckPayload for target SynAck packets
 type SynAckPayloadPayload struct {
 	Type            string `json:"Type"`
 	Action          string `json:"Action"`
@@ -420,21 +420,38 @@ type SynAckPayloadPayload struct {
 
 // DataPayload for client Data packets
 type DataPayload struct {
+	Payload   DataPayloadPayload `json:"Payload"`
+	Signature string             `json:"Signature"`
+}
+
+type DataPayloadPayload struct {
 	Type        string `json:"Type"`
 	Action      string `json:"Action"`
 	TargetId    string `json:"TargetId"`
 	HPointer    string `json:"HPointer"`
 	Payload     string `json:"Payload"`
 	BZEcertHash string `json:"BZECert"`
-	Signature   string `json:"Signature"`
 }
 
 // DataAckPayload for target DataAck packets
 type DataAckPayload struct {
+	Payload   DataPayloadPayload `json:"Payload"`
+	Signature string             `json:"Signature"`
+}
+
+type DataAckPayloadPayload struct {
 	Type            string `json:"Type"`
 	Action          string `json:"Action"`
 	HPointer        string `json:"HPointer"`
 	Payload         string `json:"Payload"`
 	TargetPublicKey string `json:"TargetPublicKey"`
-	Signature       string `json:"Signature"`
+}
+
+type SendSynAckError struct {
+	Err     error
+	Payload SynAckPayload
+}
+
+func (r *SendSynAckError) Error() string {
+	return r.Err.Error()
 }
