@@ -447,11 +447,15 @@ type DataAckPayloadPayload struct {
 	TargetPublicKey string `json:"TargetPublicKey"`
 }
 
-type SendSynAckError struct {
-	Err     error
-	Payload SynAckPayload
+// This error is to help return the SYNACK or DATACK in the correct
+// Datachannel object.  One of the payload will always be empty and we'll
+// switch based on the Err.Error() because Go doesn't have generics yet.
+type KeysplittingError struct {
+	Err            error
+	SynAckContent  SynAckPayload
+	DataAckContent DataAckPayload
 }
 
-func (r *SendSynAckError) Error() string {
+func (r *KeysplittingError) Error() string {
 	return r.Err.Error()
 }

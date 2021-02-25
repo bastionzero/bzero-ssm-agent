@@ -214,72 +214,69 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
 
 	case mgsContracts.Syn:
-		{
-			log.Debugf("Syn payload received: %v", string(streamDataMessage.Payload))
-			var synpayload mgsContracts.SynPayload
-			if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
-				return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
-			}
+		log.Debugf("Syn payload received: %v", string(streamDataMessage.Payload))
 
-			log.Debugf("SynPayload unmarshalled...")
-
-			// super legit bze verification
-			if synpayload.Payload.BZECert == "thisisabzecert" {
-				log.Debugf("Checks on bzecert passed...")
-				// Add bzecert to list of bzecerts
-				bzehash, err := keysplitting.HashA(synpayload.Payload.BZECert)
-				if err != nil {
-					return fmt.Errorf("Error hashing BZECert: %v", err)
-				}
-				p.bzecerts[bzehash] = synpayload.Payload.BZECert
-
-				log.Debugf("BZECerts updated: %v: %v", bzehash, synpayload.Payload.BZECert)
-
-				hash, err := keysplitting.HashPayload(synpayload.Payload)
-				if err != nil {
-					return fmt.Errorf("Error hashing payload, %v.", synpayload.Payload)
-				}
-
-				contentContent := mgsContracts.SynAckPayloadPayload{
-					Type:            "SYNACK",
-					Action:          synpayload.Payload.Action,
-					Nonce:           keysplitting.GenerateNonce(p.hpointer),
-					HPointer:        hash,
-					TargetPublicKey: keysplitting.TargetPublicKey,
-				}
-				synAckContent := mgsContracts.SynAckPayload{
-					Payload:   contentContent,
-					Signature: "thisisatargetsignature",
-				}
-
-				p.hpointer = hash
-
-				log.Debugf("SYNACK Message sent and hpointer updated")
-
-				return &mgsContracts.SendSynAckError{
-					Err:     errors.New("SYNACK"),
-					Payload: synAckContent,
-				}
-
-				return fmt.Errorf("SYNACK")
-			} else {
-				return fmt.Errorf("BZEcert, %s, and Signature, %s, did not pass checks", synpayload.Payload.BZECert, synpayload.Signature)
-			}
+		var synpayload mgsContracts.SynPayload
+		if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
+			return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
 		}
-		// case mgsContracts.Data:
-		// 	{
-		// 		// to be implemented
-		// 		return nil
-		// 	}
-	}
+		log.Debugf("SynPayload unmarshalled...")
 
-	if p.session == nil || !p.session.IsConnectionAvailable() {
-		// This is to handle scenario when cli/console starts sending data but session has not been initialized yet
-		// Since packets are rejected, cli/console will resend these packets until tcp starts successfully in separate thread
-		log.Tracef("TCP connection unavailable. Reject incoming message packet")
-		return mgsContracts.ErrHandlerNotReady
-	} else {
-		return p.session.HandleStreamMessage(streamDataMessage)
+		// super legit BZECert verification
+		if synpayload.Payload.BZECert == "thisisabzecert" {
+			log.Debugf("Check on BZECert passed...")
+
+			// Add client's BZECert to list of BZECerts
+			bzehash, err := keysplitting.Hash(synpayload.Payload.BZECert)
+			if err != nil {
+				return fmt.Errorf("Error hashing BZECert: %v", err)
+			}
+			p.bzecerts[bzehash] = synpayload.Payload.BZECert
+			log.Debugf("BZECerts updated: %v: %v", bzehash, synpayload.Payload.BZECert)
+
+			// Calculate hpointer but don't update it yet
+			hash, err := keysplitting.HashPayloadPayload(synpayload.Payload)
+			if err != nil {
+				return fmt.Errorf("Error hashing %v payload: %v.", synpayload.Payload.Type, synpayload.Payload)
+			}
+
+			// Build SynAck message payload
+			contentPayload := mgsContracts.SynAckPayloadPayload{
+				Type:            "SYNACK",
+				Action:          synpayload.Payload.Action,
+				Nonce:           keysplitting.GetNonce(p.hpointer),
+				HPointer:        hash,
+				TargetPublicKey: keysplitting.TargetPublicKey,
+			}
+			synAckContent := mgsContracts.SynAckPayload{
+				Payload:   contentPayload,
+				Signature: "thisisatargetsignature",
+			}
+
+			// Wait until after to set hpointer so that we can use an existing hpointer as the
+			// the nonce to preserve the hash chain.  True nonce only needed at message chain inception
+			p.hpointer = hash
+
+			// Tells parent Datachannel object to send SYNACK message with specified payload
+			return &mgsContracts.KeysplittingError{
+				Err:           errors.New("SYNACK"),
+				SynAckContent: synAckContent,
+			}
+		} else {
+			return fmt.Errorf("BZECert, %s did not pass check", synpayload.Payload.BZECert)
+		}
+	case mgsContracts.Data:
+		// to be implemented
+		return nil
+	default:
+		if p.session == nil || !p.session.IsConnectionAvailable() {
+			// This is to handle scenario when cli/console starts sending data but session has not been initialized yet
+			// Since packets are rejected, cli/console will resend these packets until tcp starts successfully in separate thread
+			log.Tracef("TCP connection unavailable. Reject incoming message packet")
+			return mgsContracts.ErrHandlerNotReady
+		} else {
+			return p.session.HandleStreamMessage(streamDataMessage)
+		}
 	}
 }
 

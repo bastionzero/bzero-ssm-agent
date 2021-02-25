@@ -14,14 +14,15 @@ import (
 )
 
 const (
-	TargetPublicKey = "thisisthetargetspublickey"
+	TargetPublicKey  = "thisisthetargetspublickey"
+	targetPrivateKey = "buuts" // This is literally ridiculous but Go makes variables that start in lowercase "unexported" aka private
 )
 
 // If this is the beginning of the hash chain, then we select a random value, otherwise
 // we use the hash of the previous value to maintain log immutability
-func GenerateNonce(hashpointer string) string {
+func GetNonce(hashpointer string) string {
 	if hashpointer != "" {
-		b := make([]byte, 32) // 32 to make it same len as hash pointer
+		b := make([]byte, 32) // 32 to make it same length as hash pointer
 		rand.Read(b)
 
 		return hex.EncodeToString(b)
@@ -31,8 +32,8 @@ func GenerateNonce(hashpointer string) string {
 }
 
 // Function will accept any type of variable but will only hash strings or byte(s)
-//
-func HashA(a interface{}) (string, error) {
+// returns a hex encoded string because otherwise its unprintable nonsense
+func Hash(a interface{}) (string, error) {
 	switch v := a.(type) {
 	case string:
 		b, _ := a.(string) // extra type assertion required to hash
@@ -47,12 +48,24 @@ func HashA(a interface{}) (string, error) {
 	}
 }
 
-// We need to be hashing messages without the signature so I need to figure this out
-func HashPayload(payload mgsContracts.SynPayloadPayload) (string, error) {
-	rawpayload, err := json.Marshal(payload)
-	if err != nil {
-		return "", fmt.Errorf("Error occurred while marshalling Synpayload json: %v", err)
+// Slightly genericized but only accepts payloadpayloads of type SynPayloadPayload and DataPayloadPayload
+// and returns the hex-encoded string of the hash the raw json string value
+func HashPayloadPayload(payload interface{}) (string, error) {
+	var err error
+	var rawpayload []byte
+
+	switch v := payload.(type) {
+	case mgsContracts.SynPayloadPayload:
+		rawpayload, err = json.Marshal(payload)
+	case mgsContracts.DataPayloadPayload:
+		rawpayload, err = json.Marshal(payload)
+	default:
+		return "", fmt.Errorf("Tried to hash payload of unhandled type %v", v)
 	}
 
-	return HashA(rawpayload)
+	if err != nil {
+		return "", fmt.Errorf("Error occurred while marshalling PayloadPayload json: %v", err)
+	} else {
+		return Hash(rawpayload)
+	}
 }

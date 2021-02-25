@@ -59,7 +59,7 @@ type IDataChannel interface {
 	SendMessage(log log.T, input []byte, inputType int) error
 	SendStreamDataMessage(log log.T, dataType mgsContracts.PayloadType, inputData []byte) error
 	ResendStreamDataMessageScheduler(log log.T) error
-	SendSynAckMessage(log log.T, payload mgsContracts.SynAckPayload) error
+	SendKeysplittingAckMessage(log log.T, payload interface{}) error
 	ProcessAcknowledgedMessage(log log.T, acknowledgeMessageContent mgsContracts.AcknowledgeContent)
 	SendAcknowledgeMessage(log log.T, agentMessage mgsContracts.AgentMessage) error
 	SendAgentSessionStateMessage(log log.T, sessionStatus mgsContracts.SessionStatus) error
@@ -495,23 +495,31 @@ func (dataChannel *DataChannel) ProcessAcknowledgedMessage(log log.T, acknowledg
 	}
 }
 
-func (dataChannel *DataChannel) SendSynAckMessage(log log.T, synAckContent mgsContracts.SynAckPayload) error {
-	// I can move this to the model file since that's where the serialize and deserialization of other types of payloads
-	// are but I don't know how to generalize it for all of the payloads and I'm on a time crunch I didn't think it was a
-	// big deal to just put it here since it's not that much code
-	synAckContentBytes, err := json.Marshal(synAckContent)
+// SendKeysplittingAckMessage is used to send messages of either type SynAckPayload or DataAckPayload
+// it will reject all other types
+func (dataChannel *DataChannel) SendKeysplittingAckMessage(log log.T, payload interface{}) error {
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("Could not serialize SynAck message: %v, err: %s", synAckContent, err)
+		return fmt.Errorf("Could not serialize Ack message: %v, err: %s", payload, err)
 	}
 
-	log.Tracef("Send SynAck message: %d", synAckContent)
-	log.Debugf("Sending SYNACK message...")
+	log.Tracef("Send Ack message: %d", payloadBytes)
+	log.Debugf("Sending Keysplitting Ack message: ", payloadBytes)
 
-	if err := dataChannel.sendAgentMessage(log, mgsContracts.OutputStreamDataMessage, synAckContentBytes, 12); err != nil {
+	switch v := payload.(type) {
+	case mgsContracts.SynAckPayload:
+		err = dataChannel.sendAgentMessage(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 12)
+	case mgsContracts.DataAckPayload:
+		err = dataChannel.sendAgentMessage(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 14)
+	default:
+		return fmt.Errorf("Failed to hash Keysplitting Ack message of unhandled type %v", v)
+	}
+
+	if err != nil {
 		return err
+	} else {
+		return nil
 	}
-
-	return nil
 }
 
 // SendAcknowledgeMessage sends acknowledge message for stream data over data channel
@@ -840,9 +848,9 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 		}
 
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
-			if err, ok := err.(*mgsContracts.SendSynAckError); ok {
+			if err, ok := err.(*mgsContracts.KeysplittingError); ok { // Checks if error is of type KeysplittingError
 				if err.Error() == "SYNACK" {
-					dataChannel.SendSynAckMessage(log, err.Payload)
+					dataChannel.SendKeysplittingAckMessage(log, err.SynAckContent)
 				}
 			} else {
 				return err
