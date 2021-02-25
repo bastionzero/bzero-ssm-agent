@@ -223,7 +223,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 			log.Debugf("SynPayload unmarshalled...")
 
-			// super legit bze and signature verification
+			// super legit bze verification
 			if synpayload.Payload.BZECert == "thisisabzecert" {
 				log.Debugf("Checks on bzecert passed...")
 				// Add bzecert to list of bzecerts
@@ -240,16 +240,26 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 					return fmt.Errorf("Error hashing payload, %v.", synpayload.Payload)
 				}
 
-				p.dataChannel.SendSynAckMessage(
-					log,
-					synpayload.Payload.Action,
-					keysplitting.GenerateNonce(p.hpointer),
-					hash,
-				)
+				contentContent := mgsContracts.SynAckPayloadPayload{
+					Type:            "SYNACK",
+					Action:          synpayload.Payload.Action,
+					Nonce:           keysplitting.GenerateNonce(p.hpointer),
+					HPointer:        hash,
+					TargetPublicKey: keysplitting.TargetPublicKey,
+				}
+				synAckContent := mgsContracts.SynAckPayload{
+					Payload:   contentContent,
+					Signature: "thisisatargetsignature",
+				}
 
 				p.hpointer = hash
 
 				log.Debugf("SYNACK Message sent and hpointer updated")
+
+				return &mgsContracts.SendSynAckError{
+					Err:     errors.New("SYNACK"),
+					Payload: synAckContent,
+				}
 
 				return fmt.Errorf("SYNACK")
 			} else {
