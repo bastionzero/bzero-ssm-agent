@@ -425,18 +425,18 @@ type DataPayload struct {
 }
 
 type DataPayloadPayload struct {
-	Type        string `json:"Type"`
-	Action      string `json:"Action"`
-	TargetId    string `json:"TargetId"`
-	HPointer    string `json:"HPointer"`
-	Payload     string `json:"Payload"`
-	BZEcertHash string `json:"BZECert"`
+	Type     string `json:"Type"`
+	Action   string `json:"Action"`
+	TargetId string `json:"TargetId"`
+	HPointer string `json:"HPointer"`
+	Payload  string `json:"Payload"`
+	BZECert  string `json:"BZECert"`
 }
 
 // DataAckPayload for target DataAck packets
 type DataAckPayload struct {
-	Payload   DataPayloadPayload `json:"Payload"`
-	Signature string             `json:"Signature"`
+	Payload   DataAckPayloadPayload `json:"Payload"`
+	Signature string                `json:"Signature"`
 }
 
 type DataAckPayloadPayload struct {

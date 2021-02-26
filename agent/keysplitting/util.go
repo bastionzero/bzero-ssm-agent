@@ -57,7 +57,11 @@ func HashPayloadPayload(payload interface{}) (string, error) {
 	switch v := payload.(type) {
 	case mgsContracts.SynPayloadPayload:
 		rawpayload, err = json.Marshal(payload)
+	case mgsContracts.SynAckPayloadPayload:
+		rawpayload, err = json.Marshal(payload)
 	case mgsContracts.DataPayloadPayload:
+		rawpayload, err = json.Marshal(payload)
+	case mgsContracts.DataAckPayloadPayload:
 		rawpayload, err = json.Marshal(payload)
 	default:
 		return "", fmt.Errorf("Tried to hash payload of unhandled type %v", v)

@@ -46,12 +46,13 @@ type PortParameters struct {
 
 // Plugin is the type for the port plugin.
 type PortPlugin struct {
-	context     context.T
-	dataChannel datachannel.IDataChannel
-	cancelled   chan struct{}
-	session     IPortSession
-	bzecerts    map[string]string
-	hpointer    string
+	context          context.T
+	dataChannel      datachannel.IDataChannel
+	cancelled        chan struct{}
+	session          IPortSession
+	bzecerts         map[string]string
+	hpointer         string
+	expectedHPointer string
 }
 
 // IPortSession interface represents functions that need to be implemented by all port sessions
@@ -257,6 +258,11 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			// the nonce to preserve the hash chain.  True nonce only needed at message chain inception
 			p.hpointer = hash
 
+			// Update expectedHPointer to be H(SYNACK)
+			if p.expectedHPointer, err = keysplitting.HashPayloadPayload(contentPayload); err != nil {
+				return fmt.Errorf("Error hashing %v payload: %v.", contentPayload.Type, contentPayload)
+			}
+
 			// Tells parent Datachannel object to send SYNACK message with specified payload
 			return &mgsContracts.KeysplittingError{
 				Err:           errors.New("SYNACK"),
@@ -266,7 +272,69 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			return fmt.Errorf("BZECert, %s did not pass check", synpayload.Payload.BZECert)
 		}
 	case mgsContracts.Data:
-		// to be implemented
+		log.Infof("Data payload received: %v", string(streamDataMessage.Payload))
+
+		var datapayload mgsContracts.DataPayload
+		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
+			return fmt.Errorf("Error occurred while parsing DataPayload json: %v", err)
+		}
+		log.Infof("DataPayload unmarshalled...")
+
+		// Make sure BZECert hash matches existing hash
+		// In the future we should be getting a hash here that we can easily lookup in the map
+		bzehash, err := keysplitting.Hash(datapayload.Payload.BZECert)
+		if err != nil {
+			return fmt.Errorf("Error hashing BZECert: %v", err)
+		}
+
+		if _, ok := p.bzecerts[bzehash]; !ok {
+			return fmt.Errorf("Invalid BZECert.  Does not match a previous SYN")
+		}
+
+		// Validate hpointer
+		if p.expectedHPointer != datapayload.Payload.HPointer {
+			log.Infof("Hashing (unsurprisingly) isn't matching up.  Expected Hpointer: %v did not equal received Hpointer %v.", p.expectedHPointer, datapayload.Payload.HPointer)
+		}
+
+		// Do something with action
+		switch datapayload.Payload.Action {
+		case "ssh/open":
+			log.Infof("Consider ssh/open done! Even though nothing will happen")
+		case "ssh/close":
+			log.Infof("ssh/close action not yet implemented on ssm-agent")
+		default:
+			log.Errorf("Attempted Keysplitting action not recognized: %v", datapayload.Payload.Action)
+		}
+
+		// Calculate hpointer but don't update it yet
+		hash, err := keysplitting.HashPayloadPayload(datapayload.Payload)
+		if err != nil {
+			return fmt.Errorf("Error hashing %v payload: %v.", datapayload.Payload.Type, datapayload.Payload)
+		}
+
+		// Build SynAck message payload
+		contentPayload := mgsContracts.DataAckPayloadPayload{
+			Type:            "DATAACK",
+			Action:          datapayload.Payload.Action,
+			HPointer:        hash,
+			Payload:         datapayload.Payload.Payload,
+			TargetPublicKey: keysplitting.TargetPublicKey,
+		}
+		dataAckContent := mgsContracts.DataAckPayload{
+			Payload:   contentPayload,
+			Signature: "thisisatargetsignature",
+		}
+
+		// Wait until after to set hpointer so that we can use an existing hpointer as the
+		// the nonce to preserve the hash chain.  True nonce only needed at message chain inception
+		p.hpointer = hash
+
+		// Tells parent Datachannel object to send SYNACK message with specified payload
+		return &mgsContracts.KeysplittingError{
+			Err:            errors.New("DATAACK"),
+			DataAckContent: dataAckContent,
+		}
+
 		return nil
 	default:
 		if p.session == nil || !p.session.IsConnectionAvailable() {
