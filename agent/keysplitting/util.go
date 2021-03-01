@@ -31,6 +31,21 @@ func GetNonce(hashpointer string) string {
 	return hashpointer
 }
 
+func isKeysplittingPayload(a interface{}) bool {
+	switch a.(type) {
+	case mgsContracts.SynPayloadPayload:
+		return true
+	case mgsContracts.SynAckPayloadPayload:
+		return true
+	case mgsContracts.DataPayloadPayload:
+		return true
+	case mgsContracts.DataAckPayloadPayload:
+		return true
+	default:
+		return false
+	}
+}
+
 // Function will accept any type of variable but will only hash strings or byte(s)
 // returns a hex encoded string because otherwise its unprintable nonsense
 func Hash(a interface{}) (string, error) {
@@ -54,22 +69,15 @@ func HashPayloadPayload(payload interface{}) (string, error) {
 	var err error
 	var rawpayload []byte
 
-	switch v := payload.(type) {
-	case mgsContracts.SynPayloadPayload:
+	if isKeysplittingPayload(payload) {
 		rawpayload, err = json.Marshal(payload)
-	case mgsContracts.SynAckPayloadPayload:
-		rawpayload, err = json.Marshal(payload)
-	case mgsContracts.DataPayloadPayload:
-		rawpayload, err = json.Marshal(payload)
-	case mgsContracts.DataAckPayloadPayload:
-		rawpayload, err = json.Marshal(payload)
-	default:
-		return "", fmt.Errorf("Tried to hash payload of unhandled type %v", v)
-	}
 
-	if err != nil {
-		return "", fmt.Errorf("Error occurred while marshalling PayloadPayload json: %v", err)
+		if err != nil {
+			return "", fmt.Errorf("Error occurred while marshalling PayloadPayload json: %v", err)
+		} else {
+			return Hash(rawpayload)
+		}
 	} else {
-		return Hash(rawpayload)
+		return "", fmt.Errorf("Tried to hash payload of unhandled type %T", payload)
 	}
 }

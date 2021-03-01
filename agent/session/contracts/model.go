@@ -382,11 +382,11 @@ var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting inc
 
 // BZEcert type for parsing client's certificate
 type BZECert struct {
-	SSO_com          string `json:"SSO_com"`
-	SSO_id           string `json:"SSO_id"`
+	SSOCom           string `json:"SSOCom"`
+	SSOId            string `json:"SSOId"`
 	ClientPublicKey  string `json:"ClientPublicKey"`
-	CERrand          string `json:"CERrand"`
-	CERrandSignature string `json:"CERrandSignature"`
+	CERRand          string `json:"CERRand"`
+	CERRandSignature string `json:"CERRandSignature"`
 }
 
 // SynPayload for client Syn packets
