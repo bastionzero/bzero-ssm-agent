@@ -508,9 +508,9 @@ func (dataChannel *DataChannel) SendKeysplittingAckMessage(log log.T, payload in
 
 	switch v := payload.(type) {
 	case mgsContracts.SynAckPayload:
-		err = dataChannel.sendAgentMessage(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 12)
+		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 12)
 	case mgsContracts.DataAckPayload:
-		err = dataChannel.sendAgentMessage(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 14)
+		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 14)
 	default:
 		return fmt.Errorf("Failed to hash Keysplitting Ack message of unhandled type %v", v)
 	}
@@ -539,7 +539,7 @@ func (dataChannel *DataChannel) SendAcknowledgeMessage(log log.T, streamDataMess
 	}
 
 	log.Tracef("Send %s message for stream data: %d", mgsContracts.AcknowledgeMessage, streamDataMessage.SequenceNumber)
-	if err := dataChannel.sendAgentMessage(log, mgsContracts.AcknowledgeMessage, acknowledgeContentBytes, 0); err != nil {
+	if err := dataChannel.sendAgentMessage(log, mgsContracts.AcknowledgeMessage, acknowledgeContentBytes); err != nil {
 		return err
 	}
 	return nil
@@ -561,14 +561,14 @@ func (dataChannel *DataChannel) SendAgentSessionStateMessage(log log.T, sessionS
 	}
 
 	log.Tracef("Send %s message with session status %s", mgsContracts.AgentSessionState, string(sessionStatus))
-	if err := dataChannel.sendAgentMessage(log, mgsContracts.AgentSessionState, agentSessionStateContentBytes, 0); err != nil {
+	if err := dataChannel.sendAgentMessage(log, mgsContracts.AgentSessionState, agentSessionStateContentBytes); err != nil {
 		return err
 	}
 	return nil
 }
 
 // sendAgentMessage sends agent message for given messageType and content
-func (dataChannel *DataChannel) sendAgentMessage(log log.T, messageType string, messageContent []byte, payloadType uint32) error {
+func (dataChannel *DataChannel) sendAgentMessagewithPayloadType(log log.T, messageType string, messageContent []byte, payloadType uint32) error {
 	uuid.SwitchFormat(uuid.CleanHyphen)
 	messageId := uuid.NewV4()
 	agentMessage := &mgsContracts.AgentMessage{
@@ -580,6 +580,34 @@ func (dataChannel *DataChannel) sendAgentMessage(log log.T, messageType string, 
 		MessageId:      messageId,
 		Payload:        messageContent,
 		PayloadType:    payloadType,
+	}
+
+	msg, err := agentMessage.Serialize(log)
+	if err != nil {
+		log.Errorf("Cannot serialize agent message err: %v", err)
+		return err
+	}
+
+	err = dataChannel.SendMessage(log, msg, websocket.BinaryMessage)
+	if err != nil {
+		log.Errorf("Error sending %s message %v", messageType, err)
+		return err
+	}
+	return nil
+}
+
+// sendAgentMessage sends agent message for given messageType and content
+func (dataChannel *DataChannel) sendAgentMessage(log log.T, messageType string, messageContent []byte) error {
+	uuid.SwitchFormat(uuid.CleanHyphen)
+	messageId := uuid.NewV4()
+	agentMessage := &mgsContracts.AgentMessage{
+		MessageType:    messageType,
+		SchemaVersion:  schemaVersion,
+		CreatedDate:    uint64(time.Now().UnixNano() / 1000000),
+		SequenceNumber: sequenceNumber,
+		Flags:          messageFlags,
+		MessageId:      messageId,
+		Payload:        messageContent,
 	}
 
 	msg, err := agentMessage.Serialize(log)

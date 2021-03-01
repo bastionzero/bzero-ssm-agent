@@ -312,7 +312,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			return fmt.Errorf("Error hashing %v payload: %v.", datapayload.Payload.Type, datapayload.Payload)
 		}
 
-		// Build SynAck message payload
+		// Build DataAck message payload
 		contentPayload := mgsContracts.DataAckPayloadPayload{
 			Type:            "DATAACK",
 			Action:          datapayload.Payload.Action,
@@ -329,7 +329,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		// the nonce to preserve the hash chain.  True nonce only needed at message chain inception
 		p.hpointer = hash
 
-		// Tells parent Datachannel object to send SYNACK message with specified payload
+		// Tells parent Datachannel object to send DATAACK message with specified payload
 		return &mgsContracts.KeysplittingError{
 			Err:            errors.New("DATAACK"),
 			DataAckContent: dataAckContent,
