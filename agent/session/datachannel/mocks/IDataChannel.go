@@ -131,6 +131,9 @@ func (_m *IDataChannel) ResendStreamDataMessageScheduler(_a0 log.T) error {
 	return r0
 }
 
+func (dataChannel *DataChannel) SendKeysplittingAckMessage(log log.T, payload interface{}) error {
+}
+
 // SendAcknowledgeMessage provides a mock function with given fields: _a0, agentMessage
 func (_m *IDataChannel) SendAcknowledgeMessage(_a0 log.T, agentMessage contracts.AgentMessage) error {
 	ret := _m.Called(_a0, agentMessage)
