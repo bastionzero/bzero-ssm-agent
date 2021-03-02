@@ -23,10 +23,17 @@ import (
 	"os"
 	"strings"
 
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
+
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/fingerprint"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/registration"
+	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	"github.com/aws/amazon-ssm-agent/agent/ssm/anonauth"
 	"github.com/aws/amazon-ssm-agent/agent/version"
 )
@@ -53,7 +60,61 @@ func parseFlags() {
 	// force flag
 	flag.BoolVar(&force, "y", false, "")
 
+	// Keygen flag
+	flag.BoolVar(&keygen, keygenFlag, false, "")
+
 	flag.Parse()
+}
+
+func handleKeygenFlag(log logger.T) {
+	if flag.NFlag() > 0 {
+		if keygen {
+			// ref: https://www.socketloop.com/tutorials/golang-example-for-ecdsa-elliptic-curve-digital-signature-algorithm-functions
+			pubkeyCurve := elliptic.P256() //see http://golang.org/pkg/crypto/elliptic/#P256
+
+			// Generate our private Key
+			privatekey, err := ecdsa.GenerateKey(pubkeyCurve, rand.Reader) // this generates a public & private key pair
+
+			// Catch any errors that might have been generated
+			if err != nil {
+				log.Errorf("BZero Generation of Keys Failed: %v", err)
+				os.Exit(1)
+			}
+
+			pubkey := &privatekey.PublicKey
+
+			// Marshal our data before storing it
+			privatekeyString, pubkeyString := encode(privatekey, pubkey)
+			keys := map[string]string{
+				"PublicKey":  pubkeyString,
+				"PrivateKey": privatekeyString,
+			}
+			data, err := json.Marshal(keys)
+			if err != nil {
+				log.Errorf("BZero Marshalling of Keys Failed: %v", err)
+				os.Exit(1)
+			}
+
+			if err = vault.Store(BZeroCredsKey, data); err != nil {
+				log.Errorf("BZero Storing of Keys Failed: %v", err)
+				os.Exit(1)
+			}
+
+			log.Info("Successfully created and stored BZero keys!")
+			os.Exit(0)
+		}
+	}
+}
+
+func encode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) (string, string) {
+	// ref: https://stackoverflow.com/questions/21322182/how-to-store-ecdsa-private-key-in-go
+	x509Encoded, _ := x509.MarshalECPrivateKey(privateKey)
+	pemEncoded := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded})
+
+	x509EncodedPub, _ := x509.MarshalPKIXPublicKey(publicKey)
+	pemEncodedPub := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub})
+
+	return string(pemEncoded), string(pemEncodedPub)
 }
 
 // handles registration and fingerprint flags
