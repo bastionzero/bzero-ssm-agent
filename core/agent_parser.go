@@ -50,6 +50,9 @@ func parseFlags() {
 	flag.StringVar(&region, regionFlag, "", "")
 	flag.BoolVar(&agentVersionFlag, versionFlag, false, "")
 
+	//OrgID flag
+	flag.StringVar(&orgID, orgIDFlag, "", "")
+
 	// clear registration
 	flag.BoolVar(&clear, "clear", false, "")
 
@@ -60,54 +63,47 @@ func parseFlags() {
 	// force flag
 	flag.BoolVar(&force, "y", false, "")
 
-	// Keygen flag
-	flag.BoolVar(&keygen, keygenFlag, false, "")
-
-	//OrgID flag
-	flag.StringVar(&orgID, orgIDFlag, "", "")
-
 	flag.Parse()
 }
 
-func handleKeygenFlag(log logger.T) {
-	if flag.NFlag() > 0 {
-		if keygen {
-			// ref: https://www.socketloop.com/tutorials/golang-example-for-ecdsa-elliptic-curve-digital-signature-algorithm-functions
-			pubkeyCurve := elliptic.P256() //see http://golang.org/pkg/crypto/elliptic/#P256
+func bzeroInit(log logger.T) {
+	// BZero Init function to: 
+	// 	* Generate Pub/Priv keypair
+	//  * Store keys along with passed orgID
+	// ref: https://www.socketloop.com/tutorials/golang-example-for-ecdsa-elliptic-curve-digital-signature-algorithm-functions
+	pubkeyCurve := elliptic.P256() //see http://golang.org/pkg/crypto/elliptic/#P256
 
-			// Generate our private Key
-			privatekey, err := ecdsa.GenerateKey(pubkeyCurve, rand.Reader) // this generates a public & private key pair
+	// Generate our private Key
+	privatekey, err := ecdsa.GenerateKey(pubkeyCurve, rand.Reader) // this generates a public & private key pair
 
-			// Catch any errors that might have been generated
-			if err != nil {
-				log.Errorf("BZero Generation of Keys Failed: %v", err)
-				os.Exit(1)
-			}
-
-			pubkey := &privatekey.PublicKey
-
-			// Marshal our data before storing it
-			privatekeyString, pubkeyString := encode(privatekey, pubkey)
-			keys := map[string]string{
-				"PublicKey":      pubkeyString,
-				"PrivateKey":     privatekeyString,
-				"OrganizationID": orgID,
-			}
-			data, err := json.Marshal(keys)
-			if err != nil {
-				log.Errorf("BZero Marshalling of Keys Failed: %v", err)
-				os.Exit(1)
-			}
-
-			if err = vault.Store(BZeroCredsKey, data); err != nil {
-				log.Errorf("BZero Storing of Keys Failed: %v", err)
-				os.Exit(1)
-			}
-
-			log.Info("Successfully created and stored BZero keys!")
-			os.Exit(0)
-		}
+	// Catch any errors that might have been generated
+	if err != nil {
+		log.Errorf("BZero Generation of Keys Failed: %v", err)
+		os.Exit(1)
 	}
+
+	pubkey := &privatekey.PublicKey
+
+	// Marshal our data before storing it
+	privatekeyString, pubkeyString := encode(privatekey, pubkey)
+	keys := map[string]string{
+		"PublicKey":      pubkeyString,
+		"PrivateKey":     privatekeyString,
+		"OrganizationID": orgID,
+	}
+	data, err := json.Marshal(keys)
+	if err != nil {
+		log.Errorf("BZero Marshalling of Keys Failed: %v", err)
+		os.Exit(1)
+	}
+
+	if err = vault.Store(BZeroConfig, data); err != nil {
+		log.Errorf("BZero Storing of Config Failed: %v", err)
+		os.Exit(1)
+	}
+
+	log.Info("Successfully created and stored BZero Config!")
+	os.Exit(0)
 }
 
 func encode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) (string, string) {
@@ -172,6 +168,9 @@ func processRegistration(log logger.T) (exitCode int) {
 		flagUsage()
 		return 1
 	}
+
+	// Generate our keys, and store that with our org Id
+	bzeroInit(log)
 
 	// check if previously registered
 	if !force && registration.InstanceID() != "" {

@@ -43,12 +43,12 @@ const (
 )
 
 const (
-	BZeroCredsKey = "BZeroKey"
+	BZeroConfig = "BZeroConfig"
 )
 
 var (
 	activationCode, activationID, region, orgID              string
-	register, clear, force, fpFlag, agentVersionFlag, keygen bool
+	register, clear, force, fpFlag, agentVersionFlag         bool
 	similarityThreshold                                      int
 	registrationFile                                         = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )
