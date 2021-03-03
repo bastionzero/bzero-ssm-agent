@@ -382,11 +382,11 @@ var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting inc
 
 // BZEcert type for parsing client's certificate
 type BZECert struct {
-	SSOCom           string `json:"SSOCom"`
-	SSOId            string `json:"SSOId"`
-	ClientPublicKey  string `json:"ClientPublicKey"`
-	CERRand          string `json:"CERRand"`
-	CERRandSignature string `json:"CERRandSignature"`
+	InitialIdToken  string `json:"InitialIdToken"`
+	CurrentIdToken  string `json:"CurrentIdToken"`
+	ClientPublicKey string `json:"ClientPublicKey"`
+	Rand            string `json:"Rand"`
+	SignatureOnRand string `json:"SignatureOnRand"`
 }
 
 // SynPayload for client Syn packets
@@ -396,11 +396,11 @@ type SynPayload struct {
 }
 
 type SynPayloadPayload struct {
-	Type     string `json:"Type"`
-	Action   string `json:"Action"`
-	Nonce    string `json:"Nonce"`
-	TargetID string `json:"Type"`
-	BZECert  string `json:"BZECert"` // This will be of type BZEcert eventually
+	Type     string  `json:"Type"`
+	Action   string  `json:"Action"`
+	Nonce    string  `json:"Nonce"`
+	TargetId string  `json:"TargetId"`
+	BZECert  BZECert `json:"BZECert"`
 }
 
 // SynAckPayload for target SynAck packets
@@ -415,7 +415,6 @@ type SynAckPayloadPayload struct {
 	Nonce           string `json:"Nonce"`
 	HPointer        string `json:"HPointer"`
 	TargetPublicKey string `json:"TargetPublicKey"`
-	Signature       string `json:"Signature"`
 }
 
 // DataPayload for client Data packets
@@ -430,7 +429,7 @@ type DataPayloadPayload struct {
 	TargetId string `json:"TargetId"`
 	HPointer string `json:"HPointer"`
 	Payload  string `json:"Payload"`
-	BZECert  string `json:"BZECert"`
+	BZECert  string `json:"BZECert"` // This is a hash of the BZECert
 }
 
 // DataAckPayload for target DataAck packets

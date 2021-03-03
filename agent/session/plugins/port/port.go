@@ -50,7 +50,7 @@ type PortPlugin struct {
 	dataChannel      datachannel.IDataChannel
 	cancelled        chan struct{}
 	session          IPortSession
-	bzecerts         map[string]string
+	bzecerts         map[string]mgsContracts.BZECert
 	hpointer         string
 	expectedHPointer string
 }
@@ -96,7 +96,7 @@ func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
 	var plugin = PortPlugin{
 		context:   context,
 		cancelled: make(chan struct{}),
-		bzecerts:  make(map[string]string),
+		bzecerts:  make(map[string]mgsContracts.BZECert),
 		hpointer:  "",
 	}
 	return &plugin, nil
@@ -223,9 +223,9 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		}
 		log.Debugf("SynPayload unmarshalled...")
 
-		// super legit BZECert verification
-		if synpayload.Payload.BZECert == "thisisabzecert" {
-			log.Debugf("Check on BZECert passed...")
+		// Somewhat legit BZECert verification, only checks the current token (aka no auth_nonce verification)
+		if err := keysplitting.VerifyIdToken(synpayload.Payload.BZECert.CurrentIdToken); err == nil {
+			log.Infof("Check on BZECert passed...")
 
 			// Add client's BZECert to list of BZECerts
 			bzehash, err := keysplitting.Hash(synpayload.Payload.BZECert)
@@ -233,10 +233,10 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 				return fmt.Errorf("Error hashing BZECert: %v", err)
 			}
 			p.bzecerts[bzehash] = synpayload.Payload.BZECert
-			log.Debugf("BZECerts updated: %v: %v", bzehash, synpayload.Payload.BZECert)
+			log.Infof("BZECerts updated: %v", bzehash)
 
 			// Calculate hpointer but don't update it yet
-			hash, err := keysplitting.HashPayloadPayload(synpayload.Payload)
+			hash, err := keysplitting.HashStruct(synpayload.Payload)
 			if err != nil {
 				return fmt.Errorf("Error hashing %v payload: %v.", synpayload.Payload.Type, synpayload.Payload)
 			}
@@ -259,7 +259,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			p.hpointer = hash
 
 			// Update expectedHPointer to be H(SYNACK)
-			if p.expectedHPointer, err = keysplitting.HashPayloadPayload(contentPayload); err != nil {
+			if p.expectedHPointer, err = keysplitting.HashStruct(contentPayload); err != nil {
 				return fmt.Errorf("Error hashing %v payload: %v.", contentPayload.Type, contentPayload)
 			}
 
@@ -288,7 +288,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		}
 
 		if _, ok := p.bzecerts[bzehash]; !ok {
-			return fmt.Errorf("Invalid BZECert.  Does not match a previous SYN")
+			log.Infof("Invalid BZECert.  Does not match a previous SYN")
 		}
 
 		// Validate hpointer
@@ -307,7 +307,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		}
 
 		// Calculate hpointer but don't update it yet
-		hash, err := keysplitting.HashPayloadPayload(datapayload.Payload)
+		hash, err := keysplitting.HashStruct(datapayload.Payload)
 		if err != nil {
 			return fmt.Errorf("Error hashing %v payload: %v.", datapayload.Payload.Type, datapayload.Payload)
 		}
@@ -336,6 +336,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		}
 
 		return nil
+
 	default:
 		if p.session == nil || !p.session.IsConnectionAvailable() {
 			// This is to handle scenario when cli/console starts sending data but session has not been initialized yet

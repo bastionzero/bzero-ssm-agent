@@ -4,6 +4,7 @@
 package keysplitting
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,11 +12,15 @@ import (
 	"math/rand"
 
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
+	oidc "github.com/coreos/go-oidc/oidc"
 )
 
 const (
 	TargetPublicKey  = "thisisthetargetspublickey"
 	targetPrivateKey = "buuts" // This is literally ridiculous but Go makes variables that start in lowercase "unexported" aka private
+
+	googleJwkUrl = "https://www.googleapis.com/oauth2/v3/certs"
+	googleIss    = "https://accounts.google.com"
 )
 
 // If this is the beginning of the hash chain, then we select a random value, otherwise
@@ -41,6 +46,8 @@ func isKeysplittingPayload(a interface{}) bool {
 		return true
 	case mgsContracts.DataAckPayloadPayload:
 		return true
+	case mgsContracts.BZECert:
+		return true
 	default:
 		return false
 	}
@@ -63,9 +70,9 @@ func Hash(a interface{}) (string, error) {
 	}
 }
 
-// Slightly genericized but only accepts payloadpayloads of type SynPayloadPayload and DataPayloadPayload
+// Slightly genericized but only accepts Keysplitting structs so any payloads or bzecert
 // and returns the hex-encoded string of the hash the raw json string value
-func HashPayloadPayload(payload interface{}) (string, error) {
+func HashStruct(payload interface{}) (string, error) {
 	var err error
 	var rawpayload []byte
 
@@ -79,5 +86,43 @@ func HashPayloadPayload(payload interface{}) (string, error) {
 		}
 	} else {
 		return "", fmt.Errorf("Tried to hash payload of unhandled type %T", payload)
+	}
+}
+
+// This function verifies Google issued id_tokens
+func VerifyIdToken(idtoken string) error {
+	ctx := context.TODO()
+	config := &oidc.Config{
+		SkipClientIDCheck: true,
+		// SupportedSigningAlgs: []string{RS256, ES512},
+	}
+
+	keySet := oidc.NewRemoteKeySet(ctx, googleJwkUrl)
+	verifier := oidc.NewVerifier(googleIss, keySet, config)
+
+	rawToken, err := verifier.Verify(ctx, idtoken)
+	if err != nil {
+		return fmt.Errorf("id_token verification error: Malformed JWT token")
+	}
+
+	// the claims we care about checking
+	var claims struct {
+		// Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+		Org           string `json:"hd"`
+	}
+
+	if err := rawToken.Claims(&claims); err != nil { // parse token into claims object
+		return fmt.Errorf("id_token verification error: id_token does not have claims: email and email_verified")
+	} else {
+		if !claims.EmailVerified {
+			return fmt.Errorf("id_token verification error: Email not verified")
+		}
+	}
+
+	if _, err := keySet.VerifySignature(ctx, idtoken); err != nil {
+		return fmt.Errorf("id_token verification error: Invalid signature on JWT")
+	} else {
+		return nil
 	}
 }
