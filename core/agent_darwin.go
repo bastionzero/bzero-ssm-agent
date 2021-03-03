@@ -37,9 +37,6 @@ func main() {
 	defer log.Close()
 	defer log.Flush()
 
-	// BZero Config
-	handleKeygenFlag(log)
-
 	setProxySettings(log)
 	handleRegistrationAndFingerprintFlags(log)
 

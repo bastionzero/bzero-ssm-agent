@@ -17,9 +17,6 @@ func main() {
 	defer log.Close()
 	defer log.Flush()
 
-	// BZero Config
-	handleKeygenFlag(log)
-
 	handleRegistrationAndFingerprintFlags(log)
 
 	// run agent
