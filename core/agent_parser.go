@@ -134,7 +134,6 @@ func bzeroInit(log logger.T) {
 	}
 
 	log.Info("Successfully created and stored BZero Config!")
-	os.Exit(0)
 }
 
 func encode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) (string, string) {
