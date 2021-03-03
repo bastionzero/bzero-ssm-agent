@@ -228,7 +228,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			log.Infof("Check on BZECert passed...")
 
 			// Add client's BZECert to list of BZECerts
-			bzehash, err := keysplitting.Hash(synpayload.Payload.BZECert)
+			bzehash, err := keysplitting.HashStruct(synpayload.Payload.BZECert)
 			if err != nil {
 				return fmt.Errorf("Error hashing BZECert: %v", err)
 			}
