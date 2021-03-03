@@ -17,6 +17,7 @@ func main() {
 	defer log.Close()
 	defer log.Flush()
 
+	handleGetPubKey(log)
 	handleRegistrationAndFingerprintFlags(log)
 
 	// run agent

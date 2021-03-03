@@ -50,7 +50,7 @@ func parseFlags() {
 	flag.StringVar(&region, regionFlag, "", "")
 	flag.BoolVar(&agentVersionFlag, versionFlag, false, "")
 
-	//OrgID flag
+	// OrgID flag
 	flag.StringVar(&orgID, orgIDFlag, "", "")
 
 	// clear registration
@@ -63,7 +63,38 @@ func parseFlags() {
 	// force flag
 	flag.BoolVar(&force, "y", false, "")
 
+	// Show Pub Key flag
+	flag.BoolVar(&pubKeyFlag, getPubKeyFlag, false, "")
+
 	flag.Parse()
+}
+
+func handleGetPubKey(log logger.T) {
+	// BZero helper function to:
+	// * Get and show the public key
+	if flag.NFlag() > 0 {
+		if pubKeyFlag {
+			bzeroConfig := map[string]string{}
+
+			config, err := vault.Retrieve(BZeroConfig)
+			if err != nil {
+				log.Errorf("Error retriving BZero config: %v", err)
+				os.Exit(1)
+			} else if config == nil {
+				log.Error("BZero Config file is empty!")
+				os.Exit(1)
+			}
+
+			// Unmarshal the retrieved data
+			if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
+				log.Errorf("Error retriving BZero config: %v", err)
+				os.Exit(1)
+			}
+
+			fmt.Println(bzeroConfig["PublicKey"])
+			os.Exit(0)
+		}
+	}
 }
 
 func bzeroInit(log logger.T) {
