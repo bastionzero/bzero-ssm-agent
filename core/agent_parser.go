@@ -67,7 +67,7 @@ func parseFlags() {
 }
 
 func bzeroInit(log logger.T) {
-	// BZero Init function to: 
+	// BZero Init function to:
 	// 	* Generate Pub/Priv keypair
 	//  * Store keys along with passed orgID
 	// ref: https://www.socketloop.com/tutorials/golang-example-for-ecdsa-elliptic-curve-digital-signature-algorithm-functions
