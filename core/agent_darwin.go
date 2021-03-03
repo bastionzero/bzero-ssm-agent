@@ -37,6 +37,7 @@ func main() {
 	defer log.Close()
 	defer log.Flush()
 
+	handleGetPubKey(log)
 	setProxySettings(log)
 	handleRegistrationAndFingerprintFlags(log)
 
