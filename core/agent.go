@@ -47,10 +47,10 @@ const (
 )
 
 var (
-	activationCode, activationID, region, orgID              string
-	register, clear, force, fpFlag, agentVersionFlag         bool
-	similarityThreshold                                      int
-	registrationFile                                         = filepath.Join(appconfig.DefaultDataStorePath, "registration")
+	activationCode, activationID, region, orgID      string
+	register, clear, force, fpFlag, agentVersionFlag bool
+	similarityThreshold                              int
+	registrationFile                                 = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )
 
 func start(log logger.T) (app.CoreAgent, logger.T, error) {
