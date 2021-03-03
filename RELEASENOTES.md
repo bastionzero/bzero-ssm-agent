@@ -1,4 +1,4 @@
-Latest
+3.0.0.0
 ===============
 - Fix bug in document parameter expansion
 - Fix datachannel to wait for empty message buffer before closing
