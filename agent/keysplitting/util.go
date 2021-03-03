@@ -113,7 +113,7 @@ func VerifyIdToken(idtoken string) error {
 	}
 
 	if err := rawToken.Claims(&claims); err != nil { // parse token into claims object
-		return fmt.Errorf("id_token verification error: id_token does not have claims: email and email_verified")
+		return fmt.Errorf("id_token verification error: id_token does not have claims: hd and email_verified")
 	} else {
 		if !claims.EmailVerified {
 			return fmt.Errorf("id_token verification error: Email not verified")
