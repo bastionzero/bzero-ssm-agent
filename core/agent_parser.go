@@ -63,6 +63,9 @@ func parseFlags() {
 	// Keygen flag
 	flag.BoolVar(&keygen, keygenFlag, false, "")
 
+	//OrgID flag
+	flag.StringVar(&orgID, orgIDFlag, "", "")
+
 	flag.Parse()
 }
 
@@ -86,8 +89,9 @@ func handleKeygenFlag(log logger.T) {
 			// Marshal our data before storing it
 			privatekeyString, pubkeyString := encode(privatekey, pubkey)
 			keys := map[string]string{
-				"PublicKey":  pubkeyString,
-				"PrivateKey": privatekeyString,
+				"PublicKey":      pubkeyString,
+				"PrivateKey":     privatekeyString,
+				"OrganizationID": orgID,
 			}
 			data, err := json.Marshal(keys)
 			if err != nil {
