@@ -39,7 +39,7 @@ const (
 	versionFlag             = "version"
 	fingerprintFlag         = "fingerprint"
 	similarityThresholdFlag = "similarityThreshold"
-	getPubKeyFlag           = "getPubKey"
+	bzeroInfoFlag           = "bzeroInfo"
 )
 
 const (
@@ -47,10 +47,10 @@ const (
 )
 
 var (
-	activationCode, activationID, region, orgID                  string
-	register, clear, force, fpFlag, agentVersionFlag, pubKeyFlag bool
-	similarityThreshold                                          int
-	registrationFile                                             = filepath.Join(appconfig.DefaultDataStorePath, "registration")
+	activationCode, activationID, region, orgID                 string
+	register, clear, force, fpFlag, agentVersionFlag, bzeroInfo bool
+	similarityThreshold                                         int
+	registrationFile                                            = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )
 
 func start(log logger.T) (app.CoreAgent, logger.T, error) {

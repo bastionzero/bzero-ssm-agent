@@ -31,13 +31,13 @@ func main() {
 	// parse input parameters
 	parseFlags()
 	handleAgentVersionFlag()
+	handleBZeroInfo()
 
 	// initialize logger
 	log := logger.SSMLogger(true)
 	defer log.Close()
 	defer log.Flush()
 
-	handleGetPubKey(log)
 	setProxySettings(log)
 	handleRegistrationAndFingerprintFlags(log)
 
