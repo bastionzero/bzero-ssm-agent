@@ -63,38 +63,42 @@ func parseFlags() {
 	// force flag
 	flag.BoolVar(&force, "y", false, "")
 
-	// Show Pub Key flag
-	flag.BoolVar(&pubKeyFlag, getPubKeyFlag, false, "")
+	// Show bzeroInfo flag
+	flag.BoolVar(&bzeroInfo, bzeroInfoFlag, false, "")
 
 	flag.Parse()
 }
 
-func handleGetPubKey(log logger.T) {
-	// BZero helper function to:
-	// * Get and show the public key
-	if flag.NFlag() > 0 {
-		if pubKeyFlag {
-			bzeroConfig := map[string]string{}
-
-			config, err := vault.Retrieve(BZeroConfig)
-			if err != nil {
-				log.Errorf("Error retriving BZero config: %v", err)
-				os.Exit(1)
-			} else if config == nil {
-				log.Error("BZero Config file is empty!")
-				os.Exit(1)
-			}
-
-			// Unmarshal the retrieved data
-			if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
-				log.Errorf("Error retriving BZero config: %v", err)
-				os.Exit(1)
-			}
-
-			fmt.Println(bzeroConfig["PublicKey"])
+func handleBZeroInfo() {
+	if flag.NFlag() == 1 {
+		if bzeroInfo {
+			fmt.Println("BZero Agent Version: " + version.Version)
+			printBZeroPubKey()
 			os.Exit(0)
 		}
 	}
+}
+
+// This function is without logger and will not print extra statements
+func printBZeroPubKey() {
+	bzeroConfig := map[string]string{}
+
+	config, err := vault.Retrieve(BZeroConfig)
+	if err != nil {
+		fmt.Printf("Error retriving BZero config: %v", err)
+		os.Exit(1)
+	} else if config == nil {
+		fmt.Printf("BZero Config file is empty!")
+		os.Exit(1)
+	}
+
+	// Unmarshal the retrieved data
+	if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
+		fmt.Printf("Error retriving BZero config: %v", err)
+		os.Exit(1)
+	}
+
+	fmt.Println(bzeroConfig["PublicKey"])
 }
 
 func bzeroInit(log logger.T) {
