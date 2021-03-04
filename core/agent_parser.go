@@ -52,6 +52,7 @@ func parseFlags() {
 
 	// OrgID flag
 	flag.StringVar(&orgID, orgIDFlag, "", "")
+	flag.StringVar(&orgProvider, orgProviderFlag, "", "")
 
 	// clear registration
 	flag.BoolVar(&clear, "clear", false, "")
@@ -122,9 +123,10 @@ func bzeroInit(log logger.T) {
 	// Marshal our data before storing it
 	privatekeyString, pubkeyString := encode(privatekey, pubkey)
 	keys := map[string]string{
-		"PublicKey":      pubkeyString,
-		"PrivateKey":     privatekeyString,
-		"OrganizationID": orgID,
+		"PublicKey":            pubkeyString,
+		"PrivateKey":           privatekeyString,
+		"OrganizationID":       orgID,
+		"OrganizationProvider": orgProvider,
 	}
 	data, err := json.Marshal(keys)
 	if err != nil {
