@@ -35,6 +35,7 @@ const (
 	activationIDFlag        = "id"
 	regionFlag              = "region"
 	orgIDFlag               = "org"
+	orgProviderFlag         = "orgProvider"
 	registerFlag            = "register"
 	versionFlag             = "version"
 	fingerprintFlag         = "fingerprint"
@@ -47,7 +48,7 @@ const (
 )
 
 var (
-	activationCode, activationID, region, orgID                 string
+	activationCode, activationID, region, orgID, orgProvider    string
 	register, clear, force, fpFlag, agentVersionFlag, bzeroInfo bool
 	similarityThreshold                                         int
 	registrationFile                                            = filepath.Join(appconfig.DefaultDataStorePath, "registration")
