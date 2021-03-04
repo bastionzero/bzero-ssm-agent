@@ -31,6 +31,7 @@ func main() {
 	// parse input parameters
 	parseFlags()
 	handleAgentVersionFlag()
+	handleBZeroInfo()
 
 	// initialize logger
 	log := logger.SSMLogger(true)
