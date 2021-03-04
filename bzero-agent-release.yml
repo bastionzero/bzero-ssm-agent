@@ -14,7 +14,7 @@ phases:
     commands:
       - echo Pre-Build started...
       - git fetch --tags
-      - LatestTag=$(git describe --tags `git rev-list --tags --max-count=1`)
+      - LatestTag=$(git describe --tags --abbrev=0)
       - grep -q 'bzero-' <<< $LatestTag && echo "Tag is valid" || (echo "Tag $LatestTag is invalid" && exit 1)
       - git checkout $LatestTag
       - LatestVersion=$(echo $LatestTag | sed 's/bzero-//g' )
