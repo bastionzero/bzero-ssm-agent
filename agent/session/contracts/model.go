@@ -259,6 +259,10 @@ const (
 	EncChallengeRequest  PayloadType = 8
 	EncChallengeResponse PayloadType = 9
 	Flag                 PayloadType = 10
+	Syn                  PayloadType = 11
+	SynAck               PayloadType = 12
+	Data                 PayloadType = 13
+	DataAck              PayloadType = 14
 )
 
 type PayloadTypeFlag uint32
@@ -365,3 +369,93 @@ type HandshakeCompletePayload struct {
 
 // ErrHandlerNotReady message indicates that the session plugin's incoming message handler is not ready
 var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting incoming packet")
+
+//Keysplitting Type Definitions
+
+// type KeysplittingAction string
+
+// // This will help us fix and control the defined actions any user can take
+// const (
+// 	SshOpen  KeysplittingAction = "ssh/open"
+// 	SshClose KeysplittingAction = "ssh/close"
+// )
+
+// BZEcert type for parsing client's certificate
+type BZECert struct {
+	SSOCom           string `json:"SSOCom"`
+	SSOId            string `json:"SSOId"`
+	ClientPublicKey  string `json:"ClientPublicKey"`
+	CERRand          string `json:"CERRand"`
+	CERRandSignature string `json:"CERRandSignature"`
+}
+
+// SynPayload for client Syn packets
+type SynPayload struct {
+	Payload   SynPayloadPayload `json:"Payload"`
+	Signature string            `json:"Signature"`
+}
+
+type SynPayloadPayload struct {
+	Type     string `json:"Type"`
+	Action   string `json:"Action"`
+	Nonce    string `json:"Nonce"`
+	TargetID string `json:"Type"`
+	BZECert  string `json:"BZECert"` // This will be of type BZEcert eventually
+}
+
+// SynAckPayload for target SynAck packets
+type SynAckPayload struct {
+	Payload   SynAckPayloadPayload `json:"Payload"`
+	Signature string               `json:"Signature"`
+}
+
+type SynAckPayloadPayload struct {
+	Type            string `json:"Type"`
+	Action          string `json:"Action"`
+	Nonce           string `json:"Nonce"`
+	HPointer        string `json:"HPointer"`
+	TargetPublicKey string `json:"TargetPublicKey"`
+	Signature       string `json:"Signature"`
+}
+
+// DataPayload for client Data packets
+type DataPayload struct {
+	Payload   DataPayloadPayload `json:"Payload"`
+	Signature string             `json:"Signature"`
+}
+
+type DataPayloadPayload struct {
+	Type     string `json:"Type"`
+	Action   string `json:"Action"`
+	TargetId string `json:"TargetId"`
+	HPointer string `json:"HPointer"`
+	Payload  string `json:"Payload"`
+	BZECert  string `json:"BZECert"`
+}
+
+// DataAckPayload for target DataAck packets
+type DataAckPayload struct {
+	Payload   DataAckPayloadPayload `json:"Payload"`
+	Signature string                `json:"Signature"`
+}
+
+type DataAckPayloadPayload struct {
+	Type            string `json:"Type"`
+	Action          string `json:"Action"`
+	HPointer        string `json:"HPointer"`
+	Payload         string `json:"Payload"`
+	TargetPublicKey string `json:"TargetPublicKey"`
+}
+
+// This error is to help return the SYNACK or DATACK in the correct
+// Datachannel object.  One of the payload will always be empty and we'll
+// switch based on the Err.Error() because Go doesn't have generics yet.
+type KeysplittingError struct {
+	Err            error
+	SynAckContent  SynAckPayload
+	DataAckContent DataAckPayload
+}
+
+func (r *KeysplittingError) Error() string {
+	return r.Err.Error()
+}
