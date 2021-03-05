@@ -224,7 +224,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		log.Debugf("SynPayload unmarshalled...")
 
 		// Somewhat legit BZECert verification, only checks the current token (aka no auth_nonce verification)
-		if err := keysplitting.VerifyIdToken(synpayload.Payload.BZECert.CurrentIdToken); err == nil {
+		if err := keysplitting.VerifyBZECert(synpayload.Payload.BZECert); err == nil {
 			log.Infof("Check on BZECert passed...")
 
 			// Add client's BZECert to list of BZECerts
@@ -269,7 +269,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 				SynAckContent: synAckContent,
 			}
 		} else {
-			return fmt.Errorf("BZECert, %s did not pass check", synpayload.Payload.BZECert)
+			return fmt.Errorf("BZECert Error: %v", err)
 		}
 	case mgsContracts.Data:
 		log.Infof("Data payload received: %v", string(streamDataMessage.Payload))
