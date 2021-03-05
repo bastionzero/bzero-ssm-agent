@@ -450,11 +450,20 @@ type DataAckPayloadPayload struct {
 // Datachannel object.  One of the payload will always be empty and we'll
 // switch based on the Err.Error() because Go doesn't have generics yet.
 type KeysplittingError struct {
-	Err            error
-	SynAckContent  SynAckPayload
-	DataAckContent DataAckPayload
+	Err     error
+	Content interface{}
 }
 
 func (r *KeysplittingError) Error() string {
 	return r.Err.Error()
+}
+
+type ErrorPayloadPayload struct {
+	Message  string
+	HPointer string
+}
+
+type ErrorPayload struct {
+	Payload   ErrorPayloadPayload
+	Signature string
 }

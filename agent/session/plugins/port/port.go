@@ -209,6 +209,22 @@ func (p *PortPlugin) execute(
 	log.Debug("Port session execution complete")
 }
 
+func (p *PortPlugin) newErrorMessage(message string) mgsContracts.KeysplittingError {
+	content := mgsContracts.ErrorPayloadPayload{
+		Message:  message,
+		HPointer: p.hpointer,
+	}
+	errorContent := mgsContracts.ErrorPayload{
+		Payload:   content,
+		Signature: "targetsignature",
+	}
+
+	return mgsContracts.KeysplittingError{
+		Err:     errors.New("SYNACK"),
+		Content: errorContent,
+	}
+}
+
 // InputStreamMessageHandler passes payload byte stream to port
 func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error {
 
@@ -219,7 +235,8 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		var synpayload mgsContracts.SynPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
-			return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
+			keyErr := p.newErrorMessage(fmt.Sprintf("Error occurred while parsing SynPayload json: %v", err))
+			return &keyErr
 		}
 		log.Debugf("SynPayload unmarshalled...")
 
@@ -227,19 +244,21 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		if err := keysplitting.VerifyBZECert(synpayload.Payload.BZECert); err == nil {
 			log.Infof("Check on BZECert passed...")
 
-			// Add client's BZECert to list of BZECerts
-			bzehash, err := keysplitting.HashStruct(synpayload.Payload.BZECert)
-			if err != nil {
-				return fmt.Errorf("Error hashing BZECert: %v", err)
-			}
-			p.bzecerts[bzehash] = synpayload.Payload.BZECert
-			log.Infof("BZECerts updated: %v", bzehash)
-
 			// Calculate hpointer but don't update it yet
 			hash, err := keysplitting.HashStruct(synpayload.Payload)
 			if err != nil {
-				return fmt.Errorf("Error hashing %v payload: %v.", synpayload.Payload.Type, synpayload.Payload)
+				keyErr := p.newErrorMessage(fmt.Sprintf("Error hashing %v payload: %v.", synpayload.Payload.Type, synpayload.Payload))
+				return &keyErr
 			}
+
+			// Add client's BZECert to list of BZECerts
+			bzehash, err := keysplitting.HashStruct(synpayload.Payload.BZECert)
+			if err != nil {
+				keyErr := p.newErrorMessage(fmt.Sprintf("Error hashing BZECert: %v", err))
+				return &keyErr
+			}
+			p.bzecerts[bzehash] = synpayload.Payload.BZECert
+			log.Infof("BZECerts updated: %v", bzehash)
 
 			// Build SynAck message payload
 			contentPayload := mgsContracts.SynAckPayloadPayload{
@@ -260,23 +279,26 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 			// Update expectedHPointer to be H(SYNACK)
 			if p.expectedHPointer, err = keysplitting.HashStruct(contentPayload); err != nil {
-				return fmt.Errorf("Error hashing %v payload: %v.", contentPayload.Type, contentPayload)
+				keyErr := p.newErrorMessage(fmt.Sprintf("Error hashing %v payload: %v.", contentPayload.Type, contentPayload))
+				return &keyErr
 			}
 
 			// Tells parent Datachannel object to send SYNACK message with specified payload
 			return &mgsContracts.KeysplittingError{
-				Err:           errors.New("SYNACK"),
-				SynAckContent: synAckContent,
+				Err:     errors.New("SYNACK"),
+				Content: synAckContent,
 			}
 		} else {
-			return fmt.Errorf("BZECert Error: %v", err)
+			keyErr := p.newErrorMessage(fmt.Sprintf("BZECert, %s did not pass check", synpayload.Payload.BZECert))
+			return &keyErr
 		}
 	case mgsContracts.Data:
 		log.Infof("Data payload received: %v", string(streamDataMessage.Payload))
 
 		var datapayload mgsContracts.DataPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
-			return fmt.Errorf("Error occurred while parsing DataPayload json: %v", err)
+			keyErr := p.newErrorMessage(fmt.Sprintf("Error occurred while parsing DataPayload json: %v", err))
+			return &keyErr
 		}
 		log.Infof("DataPayload unmarshalled...")
 
@@ -284,11 +306,13 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		// In the future we should be getting a hash here that we can easily lookup in the map
 		bzehash, err := keysplitting.Hash(datapayload.Payload.BZECert)
 		if err != nil {
-			return fmt.Errorf("Error hashing BZECert: %v", err)
+			keyErr := p.newErrorMessage(fmt.Sprintf("Error hashing BZECert: %v", err))
+			return &keyErr
 		}
 
 		if _, ok := p.bzecerts[bzehash]; !ok {
-			log.Infof("Invalid BZECert.  Does not match a previous SYN")
+			keyErr := p.newErrorMessage(fmt.Sprintf("Invalid BZECert.  Does not match a previous SYN"))
+			return &keyErr
 		}
 
 		// Validate hpointer
@@ -309,7 +333,8 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		// Calculate hpointer but don't update it yet
 		hash, err := keysplitting.HashStruct(datapayload.Payload)
 		if err != nil {
-			return fmt.Errorf("Error hashing %v payload: %v.", datapayload.Payload.Type, datapayload.Payload)
+			err := p.newErrorMessage(fmt.Sprintf("Error hashing %v payload: %v.", datapayload.Payload.Type, datapayload.Payload))
+			return &err
 		}
 
 		// Build DataAck message payload
@@ -331,11 +356,9 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		// Tells parent Datachannel object to send DATAACK message with specified payload
 		return &mgsContracts.KeysplittingError{
-			Err:            errors.New("DATAACK"),
-			DataAckContent: dataAckContent,
+			Err:     errors.New("DATAACK"),
+			Content: dataAckContent,
 		}
-
-		return nil
 	default:
 		if p.session == nil || !p.session.IsConnectionAvailable() {
 			// This is to handle scenario when cli/console starts sending data but session has not been initialized yet

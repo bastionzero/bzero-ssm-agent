@@ -59,7 +59,7 @@ type IDataChannel interface {
 	SendMessage(log log.T, input []byte, inputType int) error
 	SendStreamDataMessage(log log.T, dataType mgsContracts.PayloadType, inputData []byte) error
 	ResendStreamDataMessageScheduler(log log.T) error
-	SendKeysplittingAckMessage(log log.T, payload interface{}) error
+	SendKeysplittingMessage(log log.T, payload interface{}) error
 	ProcessAcknowledgedMessage(log log.T, acknowledgeMessageContent mgsContracts.AcknowledgeContent)
 	SendAcknowledgeMessage(log log.T, agentMessage mgsContracts.AgentMessage) error
 	SendAgentSessionStateMessage(log log.T, sessionStatus mgsContracts.SessionStatus) error
@@ -495,24 +495,26 @@ func (dataChannel *DataChannel) ProcessAcknowledgedMessage(log log.T, acknowledg
 	}
 }
 
-// SendKeysplittingAckMessage is used to send messages of either type SynAckPayload or DataAckPayload
+// SendKeysplittingMessage is used to send messages of either type SynAckPayload or DataAckPayload
 // it will reject all other types
-func (dataChannel *DataChannel) SendKeysplittingAckMessage(log log.T, payload interface{}) error {
+func (dataChannel *DataChannel) SendKeysplittingMessage(log log.T, payload interface{}) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("Could not serialize Ack message: %v, err: %s", payload, err)
 	}
 
-	log.Tracef("Send Ack message: %d", payloadBytes)
-	log.Debugf("Sending Keysplitting Ack message: ", payloadBytes)
+	log.Tracef("Send Ack or Error message: %d", payloadBytes)
+	log.Debugf("Sending Keysplitting message: ", payloadBytes)
 
 	switch v := payload.(type) {
 	case mgsContracts.SynAckPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 12)
 	case mgsContracts.DataAckPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 14)
+	case mgsContracts.ErrorPayload:
+		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 2)
 	default:
-		return fmt.Errorf("Failed to hash Keysplitting Ack message of unhandled type %v", v)
+		return fmt.Errorf("Failed to hash Keysplitting message of unhandled type %v", v) // Should this also be a keysplitting error message?
 	}
 
 	if err != nil {
@@ -877,12 +879,15 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
 			if err, ok := err.(*mgsContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
-				switch err.Error() {
-				case "SYNACK":
-					dataChannel.SendKeysplittingAckMessage(log, err.SynAckContent)
-				case "DATAACK":
-					dataChannel.SendKeysplittingAckMessage(log, err.DataAckContent)
-				}
+				dataChannel.SendKeysplittingMessage(log, err.Content)
+				// switch err.Error() {
+				// case "SYNACK":
+				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
+				// case "DATAACK":
+				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
+				// case "ERROR":
+				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
+				// }
 			} else { // If it's not of type KeysplittingError, then return it because it's just a normal error
 				return err
 			}
