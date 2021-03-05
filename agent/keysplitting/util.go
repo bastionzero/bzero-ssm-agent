@@ -97,7 +97,7 @@ func VerifyBZECert(cert mgsContracts.BZECert) error {
 }
 
 func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
-	nonce := cert.ClientPublicKey + cert.Rand + cert.SignatureOnRand
+	nonce := cert.ClientPublicKey + cert.SignatureOnRand + cert.Rand
 	hash, _ := Hash(nonce)
 
 	if authNonce == hash {
