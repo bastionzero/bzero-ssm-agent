@@ -73,7 +73,7 @@ func parseFlags() {
 func handleBZeroInfo() {
 	if flag.NFlag() == 1 {
 		if bzeroInfo {
-			fmt.Println("BZero Agent Version: " + version.Version)
+			printBZeroInfo("Version: " + version.Version)
 			printBZeroPubKey()
 			os.Exit(0)
 		}
@@ -99,7 +99,11 @@ func printBZeroPubKey() {
 		os.Exit(1)
 	}
 
-	fmt.Println(bzeroConfig["PublicKey"])
+	printBZeroInfo(bzeroConfig["PublicKey"])
+}
+
+func printBZeroInfo(info string) {
+	fmt.Printf("[BZeroAgentInfo]%s\n", info)
 }
 
 func bzeroInit(log logger.T) {
