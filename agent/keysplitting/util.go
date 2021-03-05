@@ -19,7 +19,6 @@ import (
 const (
 	TargetPublicKey  = "thisisthetargetspublickey"
 	targetPrivateKey = "buuts" // This is literally ridiculous but Go makes variables that start in lowercase "unexported" aka private
-	orgID
 
 	googleJwkUrl = "https://www.googleapis.com/oauth2/v3/certs"
 	googleIss    = "https://accounts.google.com"

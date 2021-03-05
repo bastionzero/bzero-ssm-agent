@@ -336,7 +336,6 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		}
 
 		return nil
-
 	default:
 		if p.session == nil || !p.session.IsConnectionAvailable() {
 			// This is to handle scenario when cli/console starts sending data but session has not been initialized yet
