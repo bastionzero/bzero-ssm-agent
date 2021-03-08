@@ -383,68 +383,68 @@ var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting inc
 
 // BZEcert type for parsing client's certificate
 type BZECert struct {
-	InitialIdToken  string `json:"InitialIdToken"`
-	CurrentIdToken  string `json:"CurrentIdToken"`
-	ClientPublicKey string `json:"ClientPublicKey"`
-	Rand            string `json:"Rand"`
-	SignatureOnRand string `json:"SignatureOnRand"`
+	InitialIdToken  string `json:"initialIdToken"`
+	CurrentIdToken  string `json:"currentIdToken"`
+	ClientPublicKey string `json:"clientPublicKey"`
+	Rand            string `json:"rand"`
+	SignatureOnRand string `json:"signatureOnRand"`
 }
 
 // SynPayload for client Syn packets
 type SynPayload struct {
-	Payload   SynPayloadPayload `json:"Payload"`
-	Signature string            `json:"Signature"`
+	Payload   SynPayloadPayload `json:"payload"`
+	Signature string            `json:"signature"`
 }
 
 type SynPayloadPayload struct {
-	Type     string  `json:"Type"`
-	Action   string  `json:"Action"`
-	Nonce    string  `json:"Nonce"`
-	TargetId string  `json:"TargetId"`
+	Type     string  `json:"type"`
+	Action   string  `json:"action"`
+	Nonce    string  `json:"nonce"`
+	TargetId string  `json:"targetId"`
 	BZECert  BZECert `json:"BZECert"`
 }
 
 // SynAckPayload for target SynAck packets
 type SynAckPayload struct {
-	Payload   SynAckPayloadPayload `json:"Payload"`
-	Signature string               `json:"Signature"`
+	Payload   SynAckPayloadPayload `json:"payload"`
+	Signature string               `json:"signature"`
 }
 
 type SynAckPayloadPayload struct {
-	Type            string `json:"Type"`
-	Action          string `json:"Action"`
-	Nonce           string `json:"Nonce"`
-	HPointer        string `json:"HPointer"`
-	TargetPublicKey string `json:"TargetPublicKey"`
+	Nonce           string `json:"nonce"`
+	HPointer        string `json:"hPointer"`
+	TargetPublicKey string `json:"targetPublicKey"`
+	Type            string `json:"type"`
+	Action          string `json:"action"`
 }
 
 // DataPayload for client Data packets
 type DataPayload struct {
-	Payload   DataPayloadPayload `json:"Payload"`
-	Signature string             `json:"Signature"`
+	Payload   DataPayloadPayload `json:"payload"`
+	Signature string             `json:"signature"`
 }
 
 type DataPayloadPayload struct {
-	Type     string `json:"Type"`
-	Action   string `json:"Action"`
-	TargetId string `json:"TargetId"`
-	HPointer string `json:"HPointer"`
-	Payload  string `json:"Payload"`
+	Type     string `json:"type"`
+	Action   string `json:"action"`
+	TargetId string `json:"targetId"`
+	HPointer string `json:"hPointer"`
 	BZECert  string `json:"BZECert"` // This is a hash of the BZECert
+	Payload  string `json:"payload"`
 }
 
 // DataAckPayload for target DataAck packets
 type DataAckPayload struct {
-	Payload   DataAckPayloadPayload `json:"Payload"`
-	Signature string                `json:"Signature"`
+	Payload   DataAckPayloadPayload `json:"payload"`
+	Signature string                `json:"signature"`
 }
 
 type DataAckPayloadPayload struct {
-	Type            string `json:"Type"`
-	Action          string `json:"Action"`
-	HPointer        string `json:"HPointer"`
-	Payload         string `json:"Payload"`
-	TargetPublicKey string `json:"TargetPublicKey"`
+	Type            string `json:"type"`
+	Action          string `json:"action"`
+	HPointer        string `json:"hPointer"`
+	Payload         string `json:"payload"`
+	TargetPublicKey string `json:"targetPublicKey"`
 }
 
 // This error is to help return the SYNACK or DATACK in the correct
