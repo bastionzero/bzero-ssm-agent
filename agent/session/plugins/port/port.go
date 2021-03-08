@@ -254,7 +254,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			if bzehash, err := keysplitting.HashStruct(synpayload.Payload.BZECert); err == nil { // Becase we validate this the error will be in validation
 				p.bzecerts[bzehash] = synpayload.Payload.BZECert
 				bzejson, _ := json.Marshal(synpayload.Payload.BZECert)
-				log.Infof("BZECerts updated| %v: json string: %v", bzehash, bzejson)
+				log.Infof("BZECerts updated| %v: %v", bzehash, string(bzejson))
 			}
 
 			// Build SynAck message payload
@@ -279,7 +279,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 				Content: synAckContent,
 			}
 		} else {
-			log.Infof("BZECert did not pass check.  BZECert: %v", synpayload.Payload.BZECert)
+			log.Infof("BZECert did not pass check.  %v", err)
 			keyErr := p.newErrorMessage(fmt.Sprintf("BZECert did not pass check.  BZECert: %v", synpayload.Payload.BZECert))
 			return &keyErr
 		}
