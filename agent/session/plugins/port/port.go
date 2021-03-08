@@ -277,6 +277,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 				Content: synAckContent,
 			}
 		} else {
+			log.Infof("BZECert did not pass check.  BZECert: %v", synpayload.Payload.BZECert)
 			keyErr := p.newErrorMessage(fmt.Sprintf("BZECert did not pass check.  BZECert: %v", synpayload.Payload.BZECert))
 			return &keyErr
 		}
@@ -295,10 +296,12 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		// Make sure BZECert hash matches existing hash
 		// In the future we should be getting a hash here that we can easily lookup in the map
 		if bzehash, err := keysplitting.HashStruct(datapayload.Payload.BZECert); err != nil {
+			log.Infof("Error hashing BZECert: %v", err)
 			keyErr := p.newErrorMessage(fmt.Sprintf("Error hashing BZECert: %v", err))
 			return &keyErr
 		} else {
 			if _, ok := p.bzecerts[bzehash]; !ok {
+				log.Infof("Invalid BZECert.  Does not match a previously recieved SYN")
 				keyErr := p.newErrorMessage(fmt.Sprintf("Invalid BZECert.  Does not match a previously recieved SYN"))
 				return &keyErr
 			}
