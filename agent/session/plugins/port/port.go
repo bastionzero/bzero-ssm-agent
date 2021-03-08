@@ -295,16 +295,10 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		// Make sure BZECert hash matches existing hash
 		// In the future we should be getting a hash here that we can easily lookup in the map
-		if bzehash, err := keysplitting.HashStruct(datapayload.Payload.BZECert); err != nil {
-			log.Infof("Error hashing BZECert: %v", err)
-			keyErr := p.newErrorMessage(fmt.Sprintf("Error hashing BZECert: %v", err))
+		if _, ok := p.bzecerts[datapayload.Payload.BZECert]; !ok {
+			log.Infof("Invalid BZECert.  Does not match a previously recieved SYN")
+			keyErr := p.newErrorMessage(fmt.Sprintf("Invalid BZECert.  Does not match a previously recieved SYN"))
 			return &keyErr
-		} else {
-			if _, ok := p.bzecerts[bzehash]; !ok {
-				log.Infof("Invalid BZECert.  Does not match a previously recieved SYN")
-				keyErr := p.newErrorMessage(fmt.Sprintf("Invalid BZECert.  Does not match a previously recieved SYN"))
-				return &keyErr
-			}
 		}
 
 		// Validate hpointer
