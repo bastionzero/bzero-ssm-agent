@@ -253,7 +253,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			// Add client's BZECert to map of BZECerts
 			bzehash, _ := keysplitting.HashStruct(synpayload.Payload.BZECert) // Becase we validate this the error will be in validation
 			p.bzecerts[bzehash] = synpayload.Payload.BZECert
-			log.Infof("BZECerts updated: %v", bzehash)
+			log.Infof("BZECerts updated| %v: json string: %v", bzehash, json.Marshal(synpayload.Payload.BZECert))
 
 			// Build SynAck message payload
 			contentPayload := mgsContracts.SynAckPayloadPayload{
