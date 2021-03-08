@@ -251,7 +251,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			log.Infof("Check on BZECert passed...")
 
 			// Add client's BZECert to map of BZECerts
-			if bzehash, err := keysplitting.HashStruct(synpayload.Payload.BZECert); err != nil { // Becase we validate this the error will be in validation
+			if bzehash, err := keysplitting.HashStruct(synpayload.Payload.BZECert); err == nil { // Becase we validate this the error will be in validation
 				p.bzecerts[bzehash] = synpayload.Payload.BZECert
 				bzejson, _ := json.Marshal(synpayload.Payload.BZECert)
 				log.Infof("BZECerts updated| %v: json string: %v", bzehash, bzejson)
