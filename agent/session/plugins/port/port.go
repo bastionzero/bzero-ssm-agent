@@ -244,7 +244,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		nonce := keysplitting.GetNonce(p.hpointer)
 
 		// Update hpointer so we have it for the error messages
-		p.hpointer, _ = keysplitting.HashStruct(datapayload.Payload)
+		p.hpointer, _ = keysplitting.HashStruct(synpayload.Payload)
 
 		// somewhat legit BZECert verification
 		if err := keysplitting.VerifyBZECert(synpayload.Payload.BZECert); err == nil {
