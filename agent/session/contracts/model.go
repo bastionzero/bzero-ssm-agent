@@ -263,6 +263,7 @@ const (
 	SynAck               PayloadType = 12
 	Data                 PayloadType = 13
 	DataAck              PayloadType = 14
+	KSError              PayloadType = 15
 )
 
 type PayloadTypeFlag uint32

@@ -512,7 +512,7 @@ func (dataChannel *DataChannel) SendKeysplittingMessage(log log.T, payload inter
 	case mgsContracts.DataAckPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 14)
 	case mgsContracts.ErrorPayload:
-		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 2)
+		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 15)
 	default:
 		return fmt.Errorf("Failed to hash Keysplitting message of unhandled type %v", v) // Should this also be a keysplitting error message?
 	}

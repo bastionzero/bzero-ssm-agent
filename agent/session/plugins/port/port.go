@@ -231,14 +231,14 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
 
 	case mgsContracts.Syn:
-		log.Debugf("Syn payload received: %v", string(streamDataMessage.Payload))
+		log.Infof("Syn payload received: %v", string(streamDataMessage.Payload))
 
 		var synpayload mgsContracts.SynPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
 			// not a keysplitting error, also we can't possibly have the hpointer so it wouldn't be possible to associate the error with the correct message
 			return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
 		}
-		log.Debugf("SynPayload unmarshalled...")
+		log.Infof("SynPayload unmarshalled...")
 
 		// Get nonce either rand or hpointer (if there is one)
 		nonce := keysplitting.GetNonce(p.hpointer)
@@ -248,12 +248,12 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		// somewhat legit BZECert verification
 		if err := keysplitting.VerifyBZECert(synpayload.Payload.BZECert); err == nil {
-			log.Debugf("Check on BZECert passed...")
+			log.Infof("Check on BZECert passed...")
 
 			// Add client's BZECert to map of BZECerts
 			bzehash, _ := keysplitting.HashStruct(synpayload.Payload.BZECert) // Becase we validate this the error will be in validation
 			p.bzecerts[bzehash] = synpayload.Payload.BZECert
-			log.Debugf("BZECerts updated: %v", bzehash)
+			log.Infof("BZECerts updated: %v", bzehash)
 
 			// Build SynAck message payload
 			contentPayload := mgsContracts.SynAckPayloadPayload{
