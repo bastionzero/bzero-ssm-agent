@@ -20,8 +20,7 @@ const (
 	TargetPublicKey  = "thisisthetargetspublickey"
 	targetPrivateKey = "buuts" // This is literally ridiculous but Go makes variables that start in lowercase "unexported" aka private
 
-	googleJwkUrl = "https://www.googleapis.com/oauth2/v3/certs"
-	googleIss    = "https://accounts.google.com"
+	googleIss = "https://accounts.google.com"
 )
 
 // If this is the beginning of the hash chain, then we select a random value, otherwise
