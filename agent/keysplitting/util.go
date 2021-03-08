@@ -38,7 +38,7 @@ func GetNonce(hashpointer string) string {
 	return hashpointer
 }
 
-func isKeysplittingPayload(a interface{}) bool {
+func isKeysplittingStruct(a interface{}) bool {
 	switch a.(type) {
 	case mgsContracts.SynPayloadPayload:
 		return true
@@ -68,7 +68,7 @@ func Hash(a interface{}) (string, error) {
 		hash := sha3.Sum256(b)
 		return base64.StdEncoding.EncodeToString(hash[:]), nil
 	default:
-		return "", fmt.Errorf("Error only strings and bytes are hashable.  Provided type: %v", v)
+		return "", fmt.Errorf("Error only strings and []bytes are hashable.  Provided type: %v", v)
 	}
 }
 
@@ -78,7 +78,7 @@ func HashStruct(payload interface{}) (string, error) {
 	var err error
 	var rawpayload []byte
 
-	if isKeysplittingPayload(payload) {
+	if isKeysplittingStruct(payload) {
 		rawpayload, err = json.Marshal(payload)
 
 		if err != nil {
@@ -116,14 +116,19 @@ func verifyIdToken(cert mgsContracts.BZECert) error {
 		// SupportedSigningAlgs: []string{RS256, ES512},
 	}
 
-	keySet := oidc.NewRemoteKeySet(ctx, googleJwkUrl)
-	verifier := oidc.NewVerifier(googleIss, keySet, config)
+	provider, err := oidc.NewProvider(ctx, googleIss) // requires a discovery document
+	if err != nil {
+		return fmt.Errorf("Error establishing OIDC provider during validation: %v", err)
+	}
+	var verifier = provider.Verifier(config)
 
+	// This checks formatting and signature validity
 	token, err := verifier.Verify(ctx, rawtoken)
 	if err != nil {
-		return fmt.Errorf("id_token verification error: Malformed JWT token")
+		return fmt.Errorf("ID Token verification error: %v", err)
 	}
 
+	// Verify Claims
 	// the claims we care about checking
 	var claims struct {
 		EmailVerified bool   `json:"email_verified"`
@@ -132,19 +137,15 @@ func verifyIdToken(cert mgsContracts.BZECert) error {
 	}
 
 	if err := token.Claims(&claims); err != nil { // parse token into claims object
-		return fmt.Errorf("id_token verification error: id_token does not have claims: hd and email_verified")
+		return fmt.Errorf("OIDC verification error in parsing the ID Token: %v", err)
 	} else {
 		if !claims.EmailVerified {
-			return fmt.Errorf("id_token verification error: Email not verified")
+			return fmt.Errorf("ID Token verification error: user has not verified their email")
 		}
 		if err = verifyAuthNonce(cert, claims.Nonce); err != nil {
 			return err
 		}
 	}
 
-	if _, err := keySet.VerifySignature(ctx, rawtoken); err != nil {
-		return fmt.Errorf("id_token verification error: Invalid signature on JWT")
-	} else {
-		return nil
-	}
+	return nil
 }
