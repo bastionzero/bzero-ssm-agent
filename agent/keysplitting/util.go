@@ -80,7 +80,7 @@ func HashStruct(payload interface{}) (string, error) {
 		rawpayload, err = json.Marshal(payload)
 
 		if err != nil {
-			return "", fmt.Errorf("Error occurred while marshalling PayloadPayload json: %v", err)
+			return "", fmt.Errorf("Error occurred while marshalling keysplitting json: %v", err)
 		} else {
 			return Hash(rawpayload)
 		}
