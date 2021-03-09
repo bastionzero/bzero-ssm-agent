@@ -460,11 +460,12 @@ func (r *KeysplittingError) Error() string {
 }
 
 type ErrorPayloadPayload struct {
-	Message  string
-	HPointer string
+	Message         string `json:"message"`
+	HPointer        string `json:"hPointer"`
+	TargetPublicKey string `json:"targetPublicKey"`
 }
 
 type ErrorPayload struct {
-	Payload   ErrorPayloadPayload
-	Signature string
+	Payload   ErrorPayloadPayload `json:"payload"`
+	Signature string              `json:"signature"`
 }
