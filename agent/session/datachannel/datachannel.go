@@ -878,17 +878,9 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 		}
 
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
-			if err, ok := err.(*mgsContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
+			if err, ok := err.(*mgsContracts.WrappedKeysplittingError); ok { // Check if error is of type WrappedKeysplittingError
 				dataChannel.SendKeysplittingMessage(log, err.Content)
-				// switch err.Error() {
-				// case "SYNACK":
-				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
-				// case "DATAACK":
-				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
-				// case "ERROR":
-				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
-				// }
-			} else { // If it's not of type KeysplittingError, then return it because it's just a normal error
+			} else { // If it's not of type WrappedKeysplittingError, then return it because it's just a normal error
 				return err
 			}
 		}

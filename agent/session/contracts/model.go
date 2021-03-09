@@ -447,25 +447,49 @@ type DataAckPayloadPayload struct {
 	TargetPublicKey string `json:"targetPublicKey"`
 }
 
+type KeySplittingErrorType string
+
+// Error types
+const (
+	// Catch-all unknown error type
+	Unknown KeySplittingErrorType = "Unknown"
+
+	// BZECert Validation Errors
+	BZECertIDTokenValidationError KeySplittingErrorType = "BZECertIDTokenValidationError"
+	BZECertInvalidNonce           KeySplittingErrorType = "BZECertInvalidNonce"
+	BZECertUnverifiedEmail        KeySplittingErrorType = "BZECertUnverifiedEmail"
+	BZECertInvalidHash            KeySplittingErrorType = "BZECertInvalidHash"
+)
+
 // This error is to help return the SYNACK or DATACK in the correct
 // Datachannel object.  One of the payload will always be empty and we'll
 // switch based on the Err.Error() because Go doesn't have generics yet.
-type KeysplittingError struct {
+type WrappedKeysplittingError struct {
 	Err     error
 	Content interface{}
 }
 
-func (r *KeysplittingError) Error() string {
+func (r *WrappedKeysplittingError) Error() string {
 	return r.Err.Error()
 }
 
 type ErrorPayloadPayload struct {
-	Message         string `json:"message"`
-	HPointer        string `json:"hPointer"`
-	TargetPublicKey string `json:"targetPublicKey"`
+	Message         string                `json:"message"`
+	HPointer        string                `json:"hPointer"`
+	TargetPublicKey string                `json:"targetPublicKey"`
+	ErrorType       KeySplittingErrorType `json:"errorType"`
 }
 
 type ErrorPayload struct {
 	Payload   ErrorPayloadPayload `json:"payload"`
 	Signature string              `json:"signature"`
+}
+
+type KeySplittingError struct {
+	ErrorType KeySplittingErrorType
+	Err       error
+}
+
+func (r *KeySplittingError) Error() string {
+	return r.Err.Error()
 }

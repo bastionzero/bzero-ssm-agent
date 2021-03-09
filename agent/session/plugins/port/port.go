@@ -209,17 +209,18 @@ func (p *PortPlugin) execute(
 	log.Debug("Port session execution complete")
 }
 
-func (p *PortPlugin) newErrorMessage(message string) mgsContracts.KeysplittingError {
+func (p *PortPlugin) createNewWrappedKeysplittingError(err error) mgsContracts.WrappedKeysplittingError {
 	content := mgsContracts.ErrorPayloadPayload{
-		Message:  message,
-		HPointer: p.hpointer,
+		Message:   err.Error(),
+		HPointer:  p.hpointer,
+		ErrorType: keysplitting.ToKeySplittingErrorType(err),
 	}
 	errorContent := mgsContracts.ErrorPayload{
 		Payload:   content,
 		Signature: "targetsignature",
 	}
 
-	return mgsContracts.KeysplittingError{
+	return mgsContracts.WrappedKeysplittingError{
 		Err:     errors.New("SYNACK"),
 		Content: errorContent,
 	}
@@ -274,13 +275,13 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			p.expectedHPointer, _ = keysplitting.HashStruct(contentPayload)
 
 			// Tells parent Datachannel object to send SYNACK message with specified payload
-			return &mgsContracts.KeysplittingError{
+			return &mgsContracts.WrappedKeysplittingError{
 				Err:     errors.New("SYNACK"),
 				Content: synAckContent,
 			}
 		} else {
 			log.Infof("BZECert did not pass check.  %v", err)
-			keyErr := p.newErrorMessage(fmt.Sprintf("BZECert did not pass check.  BZECert: %v", synpayload.Payload.BZECert))
+			keyErr := p.createNewWrappedKeysplittingError(err)
 			return &keyErr
 		}
 	case mgsContracts.Data:
@@ -299,7 +300,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		// In the future we should be getting a hash here that we can easily lookup in the map
 		if _, ok := p.bzecerts[datapayload.Payload.BZECert]; !ok {
 			log.Infof("Invalid BZECert.  Does not match a previously recieved SYN")
-			keyErr := p.newErrorMessage(fmt.Sprintf("Invalid BZECert.  Does not match a previously recieved SYN"))
+			keyErr := p.createNewWrappedKeysplittingError(fmt.Errorf("Invalid BZECert.  Does not match a previously recieved SYN"))
 			return &keyErr
 		}
 
@@ -335,7 +336,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		p.expectedHPointer, _ = keysplitting.HashStruct(contentPayload)
 
 		// Tells parent Datachannel object to send DATAACK message with specified payload
-		return &mgsContracts.KeysplittingError{
+		return &mgsContracts.WrappedKeysplittingError{
 			Err:     errors.New("DATAACK"),
 			Content: dataAckContent,
 		}

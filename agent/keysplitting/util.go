@@ -101,7 +101,10 @@ func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
 	if authNonce == hash {
 		return nil
 	} else {
-		return fmt.Errorf("Invalid nonce in BZECert")
+		return &mgsContracts.KeySplittingError{
+			ErrorType: mgsContracts.BZECertInvalidNonce,
+			Err:       fmt.Errorf("Invalid nonce in BZECert"),
+		}
 	}
 }
 
@@ -123,7 +126,10 @@ func verifyIdToken(cert mgsContracts.BZECert) error {
 	// This checks formatting and signature validity
 	token, err := verifier.Verify(ctx, rawtoken)
 	if err != nil {
-		return fmt.Errorf("ID Token verification error: %v", err)
+		return &mgsContracts.KeySplittingError{
+			ErrorType: mgsContracts.BZECertIDTokenValidationError,
+			Err:       err,
+		}
 	}
 
 	// Verify Claims
@@ -138,7 +144,10 @@ func verifyIdToken(cert mgsContracts.BZECert) error {
 		return fmt.Errorf("OIDC verification error in parsing the ID Token: %v", err)
 	} else {
 		if !claims.EmailVerified {
-			return fmt.Errorf("ID Token verification error: user has not verified their email")
+			return &mgsContracts.KeySplittingError{
+				ErrorType: mgsContracts.BZECertUnverifiedEmail,
+				Err:       fmt.Errorf("ID Token verification error: user has not verified their email"),
+			}
 		}
 		if err = verifyAuthNonce(cert, claims.Nonce); err != nil {
 			return err
@@ -146,4 +155,13 @@ func verifyIdToken(cert mgsContracts.BZECert) error {
 	}
 
 	return nil
+}
+
+func ToKeySplittingErrorType(err error) mgsContracts.KeySplittingErrorType {
+	switch err := err.(type) {
+	case *mgsContracts.KeySplittingError:
+		return err.ErrorType
+	default:
+		return mgsContracts.Unknown
+	}
 }
