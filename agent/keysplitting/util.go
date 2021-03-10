@@ -75,14 +75,17 @@ func Hash(a interface{}) (string, error) {
 func HashStruct(payload interface{}) (string, error) {
 	var err error
 	var rawpayload []byte
+	var payloadMap map[string]interface{}
 
 	if isKeysplittingStruct(payload) {
-		rawpayload, err = json.Marshal(payload)
+		rawpayload, _ = json.Marshal(payload)
+		json.Unmarshal(rawpayload, &payloadMap)
+		lexicon, _ := json.Marshal(payloadMap) // Make the marshalled json, alphabetical to match client
 
 		if err != nil {
 			return "", fmt.Errorf("Error occurred while marshalling keysplitting json: %v", err)
 		} else {
-			return Hash(rawpayload)
+			return Hash(lexicon)
 		}
 	} else {
 		return "", fmt.Errorf("Tried to hash payload of unhandled type %T", payload)
