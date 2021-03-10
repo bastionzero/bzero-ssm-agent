@@ -246,6 +246,13 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		log.Infof("BZECerts updated, %v: %v", string(bzejson))
 
 		// Tells parent Datachannel object to send SYNACK message with specified payload
+		content := p.ksHelper.BuildSynAck(nonce, synpayload)
+		rawpayload, err := json.Marshal(content)
+		json.Unmarshal(rawpayload, &payloadMap)
+		lexicon, _ := json.Marshal(payloadMap)
+
+		log.Infof("hashing: %v", string(lexicon))
+
 		return &mgsContracts.KeysplittingError{
 			Err:     errors.New("SYNACK"),
 			Content: p.ksHelper.BuildSynAck(nonce, synpayload),
@@ -260,7 +267,9 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		log.Infof("DataPayload unmarshalled...")
 
 		// Update hpointer, needs to be done asap for error reporting purposes
-		_ = p.ksHelper.UpdateHPointer(datapayload.Payload)
+		if err := p.ksHelper.UpdateHPointer(datapayload.Payload); err != nil {
+			log.Info("error updating hpointer: %v", err)
+		}
 
 		// Make sure BZECert hash matches existing hash
 		// In the future we should be getting a hash here that we can easily lookup in the map
