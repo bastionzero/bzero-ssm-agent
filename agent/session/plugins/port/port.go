@@ -46,13 +46,11 @@ type PortParameters struct {
 
 // Plugin is the type for the port plugin.
 type PortPlugin struct {
-	context          context.T
-	dataChannel      datachannel.IDataChannel
-	cancelled        chan struct{}
-	session          IPortSession
-	bzecerts         map[string]mgsContracts.BZECert
-	hpointer         string
-	expectedHPointer string
+	context     context.T
+	dataChannel datachannel.IDataChannel
+	cancelled   chan struct{}
+	session     IPortSession
+	ksHelper    keysplitting.KeysplittingHelper
 }
 
 // IPortSession interface represents functions that need to be implemented by all port sessions
@@ -93,13 +91,16 @@ func (p *PortPlugin) RequireHandshake() bool {
 
 // NewPortPlugin returns a new instance of the Port Plugin.
 func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
-	var plugin = PortPlugin{
-		context:   context,
-		cancelled: make(chan struct{}),
-		bzecerts:  make(map[string]mgsContracts.BZECert),
-		hpointer:  "",
+	if helper, err := keysplitting.Init(); err == nil {
+		var plugin = PortPlugin{
+			context:   context,
+			cancelled: make(chan struct{}),
+			ksHelper:  helper,
+		}
+		return &plugin, nil
+	} else {
+		return &PortPlugin{}, err
 	}
-	return &plugin, nil
 }
 
 // Name returns the name of Port Plugin
@@ -209,22 +210,6 @@ func (p *PortPlugin) execute(
 	log.Debug("Port session execution complete")
 }
 
-func (p *PortPlugin) newErrorMessage(message string) mgsContracts.KeysplittingError {
-	content := mgsContracts.ErrorPayloadPayload{
-		Message:  message,
-		HPointer: p.hpointer,
-	}
-	errorContent := mgsContracts.ErrorPayload{
-		Payload:   content,
-		Signature: "targetsignature",
-	}
-
-	return mgsContracts.KeysplittingError{
-		Err:     errors.New("SYNACK"),
-		Content: errorContent,
-	}
-}
-
 // InputStreamMessageHandler passes payload byte stream to port
 func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error {
 
@@ -241,47 +226,26 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		log.Infof("SynPayload unmarshalled...")
 
 		// Get nonce either rand or hpointer (if there is one)
-		nonce := keysplitting.GetNonce(p.hpointer)
+		nonce := p.ksHelper.GetNonce()
 
 		// Update hpointer so we have it for the error messages
-		p.hpointer, _ = keysplitting.HashStruct(synpayload.Payload)
+		_ = p.ksHelper.UpdateHPointer(synpayload.Payload)
 
-		// somewhat legit BZECert verification
-		if err := keysplitting.VerifyBZECert(synpayload.Payload.BZECert); err == nil {
-			log.Infof("Check on BZECert passed...")
-
-			// Add client's BZECert to map of BZECerts
-			if bzehash, err := keysplitting.HashStruct(synpayload.Payload.BZECert); err == nil { // Becase we validate this the error will be in validation
-				p.bzecerts[bzehash] = synpayload.Payload.BZECert
-				bzejson, _ := json.Marshal(synpayload.Payload.BZECert)
-				log.Infof("BZECerts updated| %v: %v", bzehash, string(bzejson))
-			}
-
-			// Build SynAck message payload
-			contentPayload := mgsContracts.SynAckPayloadPayload{
-				Type:            "SYNACK",
-				Action:          synpayload.Payload.Action,
-				Nonce:           nonce,
-				HPointer:        p.hpointer,
-				TargetPublicKey: keysplitting.TargetPublicKey,
-			}
-			synAckContent := mgsContracts.SynAckPayload{
-				Payload:   contentPayload,
-				Signature: "thisisatargetsignature",
-			}
-
-			// Update expectedHPointer aka the hpointer in the next received message to be H(SYNACK)
-			p.expectedHPointer, _ = keysplitting.HashStruct(contentPayload)
-
-			// Tells parent Datachannel object to send SYNACK message with specified payload
-			return &mgsContracts.KeysplittingError{
-				Err:     errors.New("SYNACK"),
-				Content: synAckContent,
-			}
-		} else {
+		// pretty legit BZECert verification
+		if err := p.ksHelper.VerifyBZECert(synpayload.Payload.BZECert); err != nil {
 			log.Infof("BZECert did not pass check.  %v", err)
-			keyErr := p.newErrorMessage(fmt.Sprintf("BZECert did not pass check.  BZECert: %v", synpayload.Payload.BZECert))
-			return &keyErr
+			return err
+			// keyErr := p.newErrorMessage(fmt.Sprintf("BZECert did not pass check.  BZECert: %v", synpayload.Payload.BZECert))
+			// return &keyErr
+		}
+		log.Infof("Check on BZECert passed...")
+		bzejson, _ := json.Marshal(synpayload.Payload.BZECert)
+		log.Infof("BZECerts updated, %v: %v", string(bzejson))
+
+		// Tells parent Datachannel object to send SYNACK message with specified payload
+		return &mgsContracts.KeysplittingError{
+			Err:     errors.New("SYNACK"),
+			Content: p.ksHelper.BuildSynAck(nonce, synpayload),
 		}
 	case mgsContracts.Data:
 		log.Infof("Data payload received: %v", string(streamDataMessage.Payload))
@@ -292,20 +256,20 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		}
 		log.Infof("DataPayload unmarshalled...")
 
-		// Update hpointer, needs to be done early for error reporting purposes
-		p.hpointer, _ = keysplitting.HashStruct(datapayload.Payload)
+		// Update hpointer, needs to be done asap for error reporting purposes
+		_ = p.ksHelper.UpdateHPointer(datapayload.Payload)
 
 		// Make sure BZECert hash matches existing hash
 		// In the future we should be getting a hash here that we can easily lookup in the map
-		if _, ok := p.bzecerts[datapayload.Payload.BZECert]; !ok {
+		if err := p.ksHelper.CheckBZECert(datapayload.Payload.BZECert); err != nil {
 			log.Infof("Invalid BZECert.  Does not match a previously recieved SYN")
-			keyErr := p.newErrorMessage(fmt.Sprintf("Invalid BZECert.  Does not match a previously recieved SYN"))
-			return &keyErr
+			return err
 		}
 
 		// Validate hpointer
-		if p.expectedHPointer != datapayload.Payload.HPointer {
-			log.Infof("Hashing (unsurprisingly) isn't matching up.  Expected Hpointer: %v did not equal received Hpointer %v.", p.expectedHPointer, datapayload.Payload.HPointer)
+		if err := p.ksHelper.ValidateHPointer(datapayload.Payload.HPointer); err != nil {
+			log.Infof("Hashing (unsurprisingly) isn't matching up.  Expected Hpointer: %v did not equal received Hpointer %v.", p.ksHelper.ExpectedHPointer, datapayload.Payload.HPointer)
+			return err
 		}
 
 		// Do something with action
@@ -318,26 +282,10 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			log.Errorf("Attempted Keysplitting action not recognized: %v", datapayload.Payload.Action)
 		}
 
-		// Build DataAck message payload
-		contentPayload := mgsContracts.DataAckPayloadPayload{
-			Type:            "DATAACK",
-			Action:          datapayload.Payload.Action,
-			HPointer:        p.hpointer,
-			Payload:         datapayload.Payload.Payload,
-			TargetPublicKey: keysplitting.TargetPublicKey,
-		}
-		dataAckContent := mgsContracts.DataAckPayload{
-			Payload:   contentPayload,
-			Signature: "thisisatargetsignature",
-		}
-
-		// Update expectedHPointer aka the hpointer in the next received message to be H(SYNACK)
-		p.expectedHPointer, _ = keysplitting.HashStruct(contentPayload)
-
 		// Tells parent Datachannel object to send DATAACK message with specified payload
 		return &mgsContracts.KeysplittingError{
 			Err:     errors.New("DATAACK"),
-			Content: dataAckContent,
+			Content: p.ksHelper.BuildDataAck(datapayload),
 		}
 	default:
 		if p.session == nil || !p.session.IsConnectionAvailable() {
