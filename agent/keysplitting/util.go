@@ -31,7 +31,7 @@ type KeysplittingHelper struct {
 	orgId    string
 	provider string
 
-	hPointer         string
+	HPointer         string
 	ExpectedHPointer string
 	bzeCerts         map[string]mgsContracts.BZECert
 
@@ -61,7 +61,7 @@ func Init() (KeysplittingHelper, error) {
 		orgId:        bzeroConfig["OrgId"],
 		provider:     bzeroConfig["OrganizationProvider"], // Either Google or Microsoft
 		bzeCerts:     make(map[string]mgsContracts.BZECert),
-		hPointer:     "",
+		HPointer:     "",
 		googleIss:    googleUrl,
 		microsoftIss: microsoftUrl + bzeroConfig["OrgId"],
 	}
@@ -72,12 +72,12 @@ func Init() (KeysplittingHelper, error) {
 // If this is the beginning of the hash chain, then we select a random value, otherwise
 // we use the hash of the previous value to maintain log immutability
 func (k *KeysplittingHelper) GetNonce() string {
-	if k.hPointer != "" {
+	if k.HPointer != "" {
 		b := make([]byte, 32) // 32 to make it same length as hash pointer
 		rand.Read(b)
 		return base64.StdEncoding.EncodeToString(b)
 	} else {
-		return k.hPointer
+		return k.HPointer
 	}
 }
 
@@ -220,36 +220,23 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert mgsContracts.BZ
 }
 
 func (k *KeysplittingHelper) UpdateHPointer(rawpayload interface{}) error {
-	switch rawpayload.(type) {
-	case mgsContracts.SynPayload:
-		payload := rawpayload.(mgsContracts.SynPayload)
-
-		// TODO: Make this less clunky
-		if hash, err := HashStruct(payload.Payload); err != nil {
+	if isKeysplittingStruct(rawpayload) {
+		if hash, err := HashStruct(rawpayload); err != nil {
 			return err
 		} else {
-			k.hPointer = hash
+			k.HPointer = hash
+			return nil
 		}
-	case mgsContracts.DataPayload:
-		payload := rawpayload.(mgsContracts.DataPayload)
-
-		if hash, err := HashStruct(payload.Payload); err != nil {
-			return err
-		} else {
-			k.hPointer = hash
-		}
-	default:
+	} else {
 		kerr := k.BuildError(fmt.Sprintf("Trying to update hpointer of unacceptable type, %T", rawpayload))
 		return &kerr
 	}
-
-	return nil
 }
 
 func (k *KeysplittingHelper) BuildError(message string) mgsContracts.KeysplittingError {
 	content := mgsContracts.ErrorPayloadPayload{
 		Message:  message,
-		HPointer: k.hPointer,
+		HPointer: k.HPointer,
 	}
 	errorContent := mgsContracts.ErrorPayload{
 		Payload:   content,
@@ -268,7 +255,7 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload mgsContracts.S
 		Type:            "SYNACK",
 		Action:          synpayload.Payload.Action,
 		Nonce:           nonce,
-		HPointer:        k.hPointer,
+		HPointer:        k.HPointer,
 		TargetPublicKey: k.publicKey,
 	}
 	synAckContent := mgsContracts.SynAckPayload{
@@ -287,7 +274,7 @@ func (k *KeysplittingHelper) BuildDataAck(datapayload mgsContracts.DataPayload) 
 	contentPayload := mgsContracts.DataAckPayloadPayload{
 		Type:            "DATAACK",
 		Action:          datapayload.Payload.Action,
-		HPointer:        k.hPointer,
+		HPointer:        k.HPointer,
 		Payload:         datapayload.Payload.Payload,
 		TargetPublicKey: k.publicKey,
 	}
@@ -313,10 +300,10 @@ func (k *KeysplittingHelper) CheckBZECert(certHash string) error {
 
 func (k *KeysplittingHelper) ValidateHPointer(newPointer string) error {
 	if k.ExpectedHPointer != newPointer {
-		kerr := k.BuildError("Hashing (unsurprisingly) isn't matching up.  Expected Hpointer: %v did not equal received Hpointer %v")
+		kerr := k.BuildError("Expected Hpointer: %v did not equal received Hpointer %v")
 		return &kerr
 	} else {
-		k.hPointer = newPointer
+		k.HPointer = newPointer
 		return nil
 	}
 }
