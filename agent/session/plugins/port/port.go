@@ -226,10 +226,13 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		log.Infof("SynPayload unmarshalled...")
 
 		// Get nonce either rand or hpointer (if there is one)
+		log.Infof("Hpointer = %v", p.ksHelper.HPointer)
 		nonce := p.ksHelper.GetNonce()
 
 		// Update hpointer so we have it for the error messages
-		_ = p.ksHelper.UpdateHPointer(synpayload.Payload)
+		if err := p.ksHelper.UpdateHPointer(synpayload.Payload); err != nil {
+			log.Info("error updating hpointer: %v", err)
+		}
 
 		// pretty legit BZECert verification
 		if err := p.ksHelper.VerifyBZECert(synpayload.Payload.BZECert); err != nil {
@@ -268,7 +271,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		// Validate hpointer
 		if err := p.ksHelper.ValidateHPointer(datapayload.Payload.HPointer); err != nil {
-			log.Infof("Hashing (unsurprisingly) isn't matching up.  Expected Hpointer: %v did not equal received Hpointer %v.", p.ksHelper.ExpectedHPointer, datapayload.Payload.HPointer)
+			log.Infof("Expected Hpointer: %v did not equal received Hpointer %v.", p.ksHelper.ExpectedHPointer, datapayload.Payload.HPointer)
 			return err
 		}
 
