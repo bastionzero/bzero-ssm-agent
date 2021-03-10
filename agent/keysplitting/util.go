@@ -303,7 +303,6 @@ func (k *KeysplittingHelper) ValidateHPointer(newPointer string) error {
 		kerr := k.BuildError("Expected Hpointer: %v did not equal received Hpointer %v")
 		return &kerr
 	} else {
-		k.HPointer = newPointer
 		return nil
 	}
 }
