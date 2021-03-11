@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/crypto/sha3"
 
+	"github.com/aws/amazon-ssm-agent/agent/log"
 	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	oidc "github.com/coreos/go-oidc/oidc"
@@ -26,6 +27,8 @@ const (
 )
 
 type KeysplittingHelper struct {
+	log log.T
+
 	publicKey  string
 	privateKey string
 
@@ -40,7 +43,7 @@ type KeysplittingHelper struct {
 	microsoftIss string
 }
 
-func Init() (KeysplittingHelper, error) {
+func Init(log log.T) (KeysplittingHelper, error) {
 	// grab values stored on Registration from Vault
 	bzeroConfig := map[string]string{}
 
@@ -57,6 +60,7 @@ func Init() (KeysplittingHelper, error) {
 	}
 
 	var helper = KeysplittingHelper{
+		log:          log,
 		publicKey:    bzeroConfig["PublicKey"],
 		privateKey:   bzeroConfig["PrivateKey"],
 		orgId:        bzeroConfig["OrgId"],
