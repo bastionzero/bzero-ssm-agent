@@ -236,13 +236,19 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		// pretty legit BZECert verification
 		if err := p.ksHelper.VerifyBZECert(synpayload.Payload.BZECert); err != nil {
-			log.Infof("BZECert did not pass check.  %v", err)
+			log.Infof("BZECert did not pass check: %v", err)
 			return err
 		}
 		log.Infof("Check on BZECert passed...")
 		bzejson, _ := json.Marshal(synpayload.Payload.BZECert)
 		bzehash, _ := keysplitting.HashStruct(synpayload.Payload.BZECert)
 		log.Infof("BZECerts updated, %v: %v", bzehash, string(bzejson))
+
+		// Validate that TargetId == Hash(pubkey)
+		if err := p.ksHelper.ValidateTargetId(synpayload.Payload.TargetId); err != nil {
+			log.Infof("Invalid TargetId: %v", err)
+			return err
+		}
 
 		// Tells parent Datachannel object to send SYNACK message with specified payload
 		return &mgsContracts.KeysplittingError{
@@ -273,6 +279,12 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		// Validate hpointer
 		if err := p.ksHelper.ValidateHPointer(datapayload.Payload.HPointer); err != nil {
 			log.Infof("Expected Hpointer: %v did not equal received Hpointer %v.", p.ksHelper.ExpectedHPointer, datapayload.Payload.HPointer)
+			return err
+		}
+
+		// Validate that TargetId == Hash(pubkey)
+		if err := p.ksHelper.ValidateTargetId(datapayload.Payload.TargetId); err != nil {
+			log.Infof("Invalid TargetId: %v", err)
 			return err
 		}
 
