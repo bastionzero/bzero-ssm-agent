@@ -91,7 +91,8 @@ func (p *PortPlugin) RequireHandshake() bool {
 
 // NewPortPlugin returns a new instance of the Port Plugin.
 func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
-	if helper, err := keysplitting.Init(); err == nil {
+	log := context.Log()
+	if helper, err := keysplitting.Init(log); err == nil {
 		var plugin = PortPlugin{
 			context:   context,
 			cancelled: make(chan struct{}),
