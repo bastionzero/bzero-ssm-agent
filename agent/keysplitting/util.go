@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -301,6 +302,21 @@ func (k *KeysplittingHelper) CheckBZECert(certHash string) error {
 func (k *KeysplittingHelper) ValidateHPointer(newPointer string) error {
 	if k.ExpectedHPointer != newPointer {
 		kerr := k.BuildError("Expected Hpointer: %v did not equal received Hpointer %v")
+		return &kerr
+	} else {
+		return nil
+	}
+}
+
+func (k *KeysplittingHelper) ValidateTargetId(targetid string) error {
+	block, _ := pem.Decode([]byte(k.publicKey))
+	if block == nil {
+		kerr := k.BuildError("failed to parse PEM block containing the public key")
+		return &kerr
+	}
+
+	if hash, _ := Hash(block.Bytes); hash != targetid {
+		kerr := k.BuildError("Invalid TargetId")
 		return &kerr
 	} else {
 		return nil
