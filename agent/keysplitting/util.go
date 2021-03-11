@@ -72,7 +72,7 @@ func Init() (KeysplittingHelper, error) {
 // If this is the beginning of the hash chain, then we select a random value, otherwise
 // we use the hash of the previous value to maintain log immutability
 func (k *KeysplittingHelper) GetNonce() string {
-	if k.HPointer != "" {
+	if k.HPointer == "" {
 		b := make([]byte, 32) // 32 to make it same length as hash pointer
 		rand.Read(b)
 		return base64.StdEncoding.EncodeToString(b)
