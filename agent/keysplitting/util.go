@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"golang.org/x/crypto/sha3"
 
@@ -201,17 +202,24 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert mgsContracts.BZ
 	// the claims we care about checking
 	// TODO map out Microsoft claims to and then switch case verification
 	var claims struct {
-		EmailVerified bool   `json:"email_verified"`
-		HD            string `json:"hd"` // Google Org ID
-		Nonce         string `json:"nonce"`
-		Org           string `json:"tid"` // Microsoft Org ID or something, check!
+		HD       string `json:"hd"` // Google Org ID
+		Nonce    string `json:"nonce"`
+		Org      string `json:"tid"` // Microsoft Org ID or something, check!
+		IssuedAt int64  `json:"iat"` // Unix datetime of issuance
 	}
 
-	if err := token.Claims(&claims); err != nil { // parse token into claims object
+	if err := token.Claims(&claims); err != nil {
 		return fmt.Errorf("OIDC verification error in parsing the ID Token: %v", err)
 	} else {
-		if !claims.EmailVerified {
-			return fmt.Errorf("ID Token verification error: user has not verified their email")
+		// Manual check to see if InitialIdToken is expired
+		if skipExpiry {
+			now := time.Now()
+			iat := time.Unix(claims.IssuedAt, 0)     // Confirmed both Microsoft and Google use Unix
+			if now.After(iat.Add(time.Hour * 168)) { // 168 hours = 7 days
+				k.log.Infof("InitialIdToken Expired: time now = %v, iat = %v", now, iat)
+				kerr := k.BuildError(fmt.Sprintf("InitialIdToken Expired: time now = %v, iat = %v", now, iat))
+				return &kerr
+			}
 		}
 		if claims.Org != k.orgId {
 			return fmt.Errorf("ID Token verification error: User's org does not match the target's org")
