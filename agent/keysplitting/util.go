@@ -23,9 +23,12 @@ import (
 
 const (
 	googleUrl    = "https://accounts.google.com"
-	microsoftUrl = "https://login.microsoftonline.com/"
-	BZeroConfig  = "BZeroConfig"   // TODO: change ref in core to this, change agent_parser
-	week         = time.Hour * 168 // 168 hours = 7 days
+	microsoftUrl = "https://login.microsoftonline.com"
+	// this is the tenant id Microsoft uses when the account is a personal account (not a work/school account)
+	// https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens#payload-claims)
+	microsoftPersonalAccountTenantId = "9188040d-6c67-4c5b-b112-36a304b66dad"
+	BZeroConfig                      = "BZeroConfig"   // TODO: change ref in core to this, change agent_parser
+	week                             = time.Hour * 168 // 168 hours = 7 days
 )
 
 type KeysplittingHelper struct {
@@ -69,10 +72,23 @@ func Init(log log.T) (KeysplittingHelper, error) {
 		provider:     bzeroConfig["OrganizationProvider"], // Either Google or Microsoft
 		bzeCerts:     make(map[string]mgsContracts.BZECert),
 		googleIss:    googleUrl,
-		microsoftIss: microsoftUrl + bzeroConfig["OrganizationID"],
+		microsoftIss: getMicrosoftIssuerUrl(bzeroConfig["OrganizationID"]),
 	}
 
 	return helper, nil
+}
+
+func getMicrosoftIssuerUrl(orgId string) string {
+	// Handles personal accounts by using microsoftPersonalAccountTenantId as the tenantId
+	// see https://github.com/coreos/go-oidc/issues/121
+	tenantId := ""
+	if orgId == "None" {
+		tenantId = microsoftPersonalAccountTenantId
+	} else {
+		tenantId = orgId
+	}
+
+	return microsoftUrl + "/" + tenantId + "/v2.0"
 }
 
 // If this is the beginning of the hash chain, then we create a nonce with a random value,
