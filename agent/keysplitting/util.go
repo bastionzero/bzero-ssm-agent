@@ -6,6 +6,7 @@ package keysplitting
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	oidc "github.com/coreos/go-oidc/oidc"
+	eth "github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -87,7 +89,18 @@ func (k *KeysplittingHelper) GetNonce() string {
 	}
 }
 
-func isKeysplittingStruct(a interface{}) bool {
+func isPayload(a interface{}) bool {
+	switch a.(type) {
+	case mgsContracts.SynPayload:
+		return true
+	case mgsContracts.DataPayload:
+		return true
+	default:
+		return false
+	}
+}
+
+func isPayloadPayload(a interface{}) bool {
 	switch a.(type) {
 	case mgsContracts.SynPayloadPayload:
 		return true
@@ -97,6 +110,17 @@ func isKeysplittingStruct(a interface{}) bool {
 		return true
 	case mgsContracts.DataAckPayloadPayload:
 		return true
+	default:
+		return false
+	}
+}
+
+func isKeysplittingStruct(a interface{}) bool {
+	if isPayloadPayload(a) {
+		return true
+	}
+
+	switch a.(type) {
 	case mgsContracts.BZECert:
 		return true
 	default:
@@ -143,7 +167,6 @@ func HashStruct(payload interface{}) (string, error) {
 func (k *KeysplittingHelper) VerifyBZECert(cert mgsContracts.BZECert) error {
 	if err := k.verifyIdToken(cert.InitialIdToken, cert, true, true); err != nil {
 		return fmt.Errorf("Invalid InitialIdToken: %v", err)
-		// TODO: Expire this token after 7 days or whatever
 	}
 	if err := k.verifyIdToken(cert.CurrentIdToken, cert, false, false); err != nil {
 		return fmt.Errorf("Invalid CurrentIdToken: %v", err)
@@ -152,6 +175,10 @@ func (k *KeysplittingHelper) VerifyBZECert(cert mgsContracts.BZECert) error {
 	// Add client's BZECert to map of BZECerts
 	if bzehash, err := HashStruct(cert); err == nil { // Becase we validate this the error will be in validation
 		k.bzeCerts[bzehash] = cert
+		k.log.Infof("Check on BZECert passed...")
+		bzejson, _ := json.Marshal(cert)
+		bzehash, _ := HashStruct(cert)
+		k.log.Infof("BZECerts updated, %v: %v", bzehash, string(bzejson))
 	}
 	return nil
 }
@@ -271,9 +298,12 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload mgsContracts.S
 		HPointer:        k.HPointer,
 		TargetPublicKey: k.publicKey,
 	}
+
+	// signature, _ := k.SignPayload(contentPayload)
+	signature := "signature"
 	synAckContent := mgsContracts.SynAckPayload{
 		Payload:   contentPayload,
-		Signature: "thisisatargetsignature",
+		Signature: signature,
 	}
 
 	// Update expectedHPointer aka the hpointer in the next received message to be H(SYNACK)
@@ -311,7 +341,7 @@ func (k *KeysplittingHelper) CheckBZECert(certHash string) error {
 	}
 }
 
-func (k *KeysplittingHelper) ValidateHPointer(newPointer string) error {
+func (k *KeysplittingHelper) VerifyHPointer(newPointer string) error {
 	if k.ExpectedHPointer != newPointer {
 		kerr := k.BuildError("Expected Hpointer: %v did not equal received Hpointer %v")
 		return &kerr
@@ -320,7 +350,7 @@ func (k *KeysplittingHelper) ValidateHPointer(newPointer string) error {
 	}
 }
 
-func (k *KeysplittingHelper) ValidateTargetId(targetid string) error {
+func (k *KeysplittingHelper) VerifyTargetId(targetid string) error {
 	block, _ := pem.Decode([]byte(k.publicKey))
 	if block == nil {
 		kerr := k.BuildError("failed to parse PEM block containing the public key")
@@ -334,3 +364,66 @@ func (k *KeysplittingHelper) ValidateTargetId(targetid string) error {
 		return nil
 	}
 }
+
+func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bzehash string) bool {
+	// Make pem into *ecdsa.PrivateKey
+	bs, _ := hex.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
+	pubKey, _ := eth.UnmarshalPubkey(bs)
+	// block, _ := pem.Decode([]byte(k.bzeCerts[bzehash].ClientPublicKey))
+	// pubKey, _ := x509.ParsePKIXPublicKey(block.Bytes)
+	// ecdsaPubKey := pubKey.(*ecdsa.PublicKey)
+
+	hash, _ := HashStruct(payload)
+	hashBits, _ := base64.StdEncoding.DecodeString(hash)
+
+	sigBits, _ := hex.DecodeString(sig)
+
+	sigPubKey, e := eth.SigToPub(hashBits, sigBits)
+	if e != nil {
+		k.log.Infof("sigPubKey error: %v", e)
+		k.log.Infof("payload hash: %v Signature: %v", hash, sig)
+		return false
+	}
+
+	if pubKey.Equal(sigPubKey) {
+		k.log.Infof("Client Signature Verified")
+		return true
+	} else {
+		k.log.Infof("Client Signature not Verified")
+		return false
+	}
+	return false
+}
+
+// func (k *KeysplittingHelper) SignPayload(payload interface{}) (string, error) {
+// 	if isPayloadPayload(payload) {
+// 		block, _ := pem.Decode([]byte(k.privateKey))
+// 		secKey, _ := x509.ParseECPrivateKey(block.Bytes)
+// 		hash, _ := HashStruct(payload)
+// 		bits, _ := base64.StdEncoding.DecodeString(hash)
+// 		if sig, err := eth.Sign(bits, secKey); err == nil {
+// 			k.log.Infof("signature is actually a thing")
+// 			pblock, _ := pem.Decode([]byte(k.publicKey))
+// 			pubKey, _ := x509.ParsePKIXPublicKey(pblock.Bytes)
+// 			ecdsaPubKey := pubKey.(*ecdsa.PublicKey)
+// 			_ = eth.CompressPubkey(ecdsaPubKey)
+// 			if eth.VerifySignature(pblock.Bytes, bits, sig) {
+// 				k.log.Infof("Signature successful TT")
+// 				return base64.StdEncoding.EncodeToString(sig), nil
+// 			} else {
+// 				k.log.Infof("Could not verify signature; pubkey: %#v privkey: %#v hash: %v", k.publicKey, k.privateKey, hash)
+// 				kerr := k.BuildError("Created Unverifiable signature")
+// 				return "", &kerr
+// 			}
+// 		} else {
+// 			k.log.Infof("Error creating signature; pubkey: %#v privkey: %#v hash: %v", k.publicKey, k.privateKey, hash)
+// 			kerr := k.BuildError("Error signing payload")
+// 			return "", &kerr
+// 		}
+// 	} else {
+// 		k.log.Infof("Attempting to sign invalid type in signature")
+// 		kerr := k.BuildError("Attempting to sign invalid type")
+// 		return "", &kerr
+// 	}
+
+// }
