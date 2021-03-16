@@ -101,7 +101,7 @@ func isPayload(a interface{}) bool {
 	}
 }
 
-func isPayloadPayload(a interface{}) bool {
+func isKeysplittingStruct(a interface{}) bool {
 	switch a.(type) {
 	case mgsContracts.SynPayloadPayload:
 		return true
@@ -111,17 +111,6 @@ func isPayloadPayload(a interface{}) bool {
 		return true
 	case mgsContracts.DataAckPayloadPayload:
 		return true
-	default:
-		return false
-	}
-}
-
-func isKeysplittingStruct(a interface{}) bool {
-	if isPayloadPayload(a) {
-		return true
-	}
-
-	switch a.(type) {
 	case mgsContracts.BZECert:
 		return true
 	default:
@@ -300,8 +289,8 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload mgsContracts.S
 		TargetPublicKey: k.publicKey,
 	}
 
-	// signature, _ := k.SignPayload(contentPayload)
-	signature := "signature"
+	signature, _ := k.SignPayload(contentPayload)
+
 	synAckContent := mgsContracts.SynAckPayload{
 		Payload:   contentPayload,
 		Signature: signature,
@@ -322,9 +311,12 @@ func (k *KeysplittingHelper) BuildDataAck(datapayload mgsContracts.DataPayload) 
 		Payload:         datapayload.Payload.Payload,
 		TargetPublicKey: k.publicKey,
 	}
+
+	signature, _ := k.SignPayload(contentPayload)
+
 	dataAckContent := mgsContracts.DataAckPayload{
 		Payload:   contentPayload,
-		Signature: "thisisatargetsignature",
+		Signature: signature,
 	}
 
 	// Update expectedHPointer aka the hpointer in the next received message to be H(DATAACK)
@@ -370,13 +362,28 @@ func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bz
 	pubKeyBits, _ := hex.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
 	pubkey := ed.PublicKey(pubKeyBits)
 
-	hash, _ := HashStruct(payload)
+	hash, err := HashStruct(payload)
+	if err != nil {
+		k.log.Infof(err.Error()) // TODO: make this report better
+		return false
+	}
 	hashBits, _ := base64.StdEncoding.DecodeString(hash)
 
 	sigBits, _ := hex.DecodeString(sig)
 
-	k.log.Infof("key: %v message: %v sig: %v", k.bzeCerts[bzehash].ClientPublicKey, hash, sig)
-
 	return ed.Verify(pubkey, hashBits, sigBits)
+}
 
+func (k *KeysplittingHelper) SignPayload(payload interface{}) (string, error) {
+	keyBytes, _ := hex.DecodeString(k.privateKey)
+	privateKey := ed.PrivateKey(keyBytes)
+
+	hash, err := HashStruct(payload)
+	if err != nil {
+		return "", err
+	}
+	hashBits, _ := base64.StdEncoding.DecodeString(hash)
+
+	sig := ed.Sign(privateKey, hashBits)
+	return base64.StdEncoding.EncodeToString(sig), nil
 }
