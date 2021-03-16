@@ -197,6 +197,7 @@ func (u *SessionUtil) DeleteIpcTempFile(sessionOrchestrationPath string) (bool, 
 
 // Appends an authorized key entry to the authorized_keys file within username's .ssh directory
 func (u *SessionUtil) AddToAuthorizedKeyFile(username string, authorizedKey string) (bool, error) {
+	// make a .ssh directory for the user if it doesnt exist and then append the authorizedKey string to the authorized_keys file within the .ssh directory
 	authorizedKeyFile := fmt.Sprintf("~%s/.ssh/authorized_keys", username)
 	appendKeyCmd := fmt.Sprintf("mkdir -p ~%s/.ssh && echo '%s' >> %s", username, authorizedKey, authorizedKeyFile)
 	shellCmdArgs := append(ShellPluginCommandArgs, lockFileAndRunCommand(authorizedKeyFile, appendKeyCmd))
@@ -213,9 +214,11 @@ func (u *SessionUtil) AddToAuthorizedKeyFile(username string, authorizedKey stri
 
 // Removes an authorized key entry from authorized_keys file within username's .ssh directory
 func (u *SessionUtil) RemoveFromAuthorizedKeyFile(username string, authorizedKey string) (bool, error) {
+	// match the entire contents of the authorized_keys file except for this specific authorizedKey entry using grep -v (inverse match)
+	// save the grep output to a temporary .authorized_keys file and then use this to overwrite the authorized_keys file
+	// grep will return error code 1 if it produces an empty match this is expected if there is only a single key in the authorized_keys file
+	// so ignore error code for this command using ';' instead of '&&' to handle this edge case
 	authorizedKeyFile := fmt.Sprintf("~%s/.ssh/authorized_keys", username)
-	// grep -v -F will return error code 1 if produces an empty match
-	// this is expected if there is only a single key in the authorized_keys file, so ignore error code for this command
 	removeKeyCmd := fmt.Sprintf("cd ~%s/.ssh && grep -v -F '%s' authorized_keys > .authorized_keys; mv .authorized_keys authorized_keys", username, authorizedKey)
 	shellCmdArgs := append(ShellPluginCommandArgs, lockFileAndRunCommand(authorizedKeyFile, removeKeyCmd))
 	cmd := exec.Command(ShellPluginBashCommandName, shellCmdArgs...)

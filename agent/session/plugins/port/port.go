@@ -325,6 +325,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 }
 
 func (p *PortPlugin) handleOpenShellDataAction(log log.T, datapayload mgsContracts.DataPayload) error {
+	// Deserialize the inner payload in the data message into SshOpenActionPayload
 	var sshOpenActionPayload mgsContracts.SshOpenActionPayload
 	if err := json.Unmarshal([]byte(datapayload.Payload.Payload), &sshOpenActionPayload); err != nil {
 		return fmt.Errorf("Error occurred while parsing ssh/open data payload json: %v", err)
@@ -350,12 +351,14 @@ func (p *PortPlugin) handleOpenShellDataAction(log log.T, datapayload mgsContrac
 	comment := "bzero-temp-key"
 	p.authorizedKeyEntry = fmt.Sprintf("%s %s %s", keyType, sshOpenActionPayload.SshPubKey, comment)
 
+	// Check the user exists
 	u := &utility.SessionUtil{}
 	var userExists, _ = u.DoesUserExist(sshOpenActionPayload.Username)
 	if !userExists {
 		return fmt.Errorf("%s user doesnt exist", sshOpenActionPayload.Username)
 	}
 
+	// Add an entry to the authorized_keys for the user
 	log.Infof("Adding authorized key entry %s for user: %s", p.authorizedKeyEntry, sshOpenActionPayload.Username)
 	var keyAdded, err = u.AddToAuthorizedKeyFile(sshOpenActionPayload.Username, p.authorizedKeyEntry)
 	if !keyAdded {
