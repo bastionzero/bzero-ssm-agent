@@ -447,6 +447,11 @@ type DataAckPayloadPayload struct {
 	TargetPublicKey string `json:"targetPublicKey"`
 }
 
+type SshOpenActionPayload struct {
+	Username  string `json:"username"`
+	SshPubKey string `json:"sshPubKey"`
+}
+
 // This error is to help return the SYNACK or DATACK in the correct
 // Datachannel object.  One of the payload will always be empty and we'll
 // switch based on the Err.Error() because Go doesn't have generics yet.

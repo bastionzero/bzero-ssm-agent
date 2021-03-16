@@ -32,6 +32,7 @@ import (
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/session/datachannel"
 	"github.com/aws/amazon-ssm-agent/agent/session/plugins/sessionplugin"
+	"github.com/aws/amazon-ssm-agent/agent/session/utility"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 	"github.com/aws/amazon-ssm-agent/agent/versionutil"
 )
@@ -51,6 +52,7 @@ type PortPlugin struct {
 	cancelled   chan struct{}
 	session     IPortSession
 	ksHelper    keysplitting.KeysplittingHelper
+	sshOpenData *mgsContracts.SshOpenActionPayload
 }
 
 // IPortSession interface represents functions that need to be implemented by all port sessions
@@ -291,7 +293,11 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		// Do something with action
 		switch datapayload.Payload.Action {
 		case "ssh/open":
-			log.Infof("Consider ssh/open done! Even though nothing will happen")
+			if err := p.handleOpenShellDataAction(log, datapayload); err != nil {
+				ksError := p.ksHelper.BuildError(fmt.Sprintf("Error processing open shell data message %s", err.Error()))
+				return &ksError
+			}
+			log.Infof("ssh/open action complete!")
 		case "ssh/close":
 			log.Infof("ssh/close action not yet implemented on ssm-agent")
 		default:
@@ -315,11 +321,46 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 	}
 }
 
+func (p *PortPlugin) handleOpenShellDataAction(log log.T, datapayload mgsContracts.DataPayload) error {
+	var sshOpenActionPayload mgsContracts.SshOpenActionPayload
+	if err := json.Unmarshal([]byte(datapayload.Payload.Payload), &sshOpenActionPayload); err != nil {
+		return fmt.Errorf("Error occurred while parsing ssh/open data payload json: %v", err)
+	}
+
+	u := &utility.SessionUtil{}
+	var userExists, _ = u.DoesUserExist(sshOpenActionPayload.Username)
+	if !userExists {
+		return fmt.Errorf("%s user doesnt exist", sshOpenActionPayload.Username)
+	}
+
+	log.Infof("Adding temporary ssh key %s for user: %s", sshOpenActionPayload.SshPubKey, sshOpenActionPayload.Username)
+	var keyAdded, err = u.AddToAuthorizedKeyFile(sshOpenActionPayload.Username, sshOpenActionPayload.SshPubKey)
+	if !keyAdded {
+		log.Errorf("Failed to add temporary ssh key for user %s: %v", sshOpenActionPayload.Username, err)
+		return fmt.Errorf("Failed to add temporary authorized ssh key")
+	}
+
+	p.sshOpenData = &sshOpenActionPayload
+
+	return nil
+}
+
 // Stop closes all opened connections to port
 func (p *PortPlugin) stop() {
-	p.context.Log().Debug("Closing all connections")
+	log := p.context.Log()
+
+	log.Info("Closing all connections")
 	if p.session != nil {
 		p.session.Stop()
+	}
+
+	if p.sshOpenData != nil {
+		log.Infof("Removing temporary ssh key %s for user: %s", p.sshOpenData.SshPubKey, p.sshOpenData.Username)
+		u := &utility.SessionUtil{}
+		var keyRemoved, err = u.RemoveFromAuthorizedKeyFile(p.sshOpenData.Username, p.sshOpenData.SshPubKey)
+		if !keyRemoved {
+			log.Errorf("Failed to remove temporary ssh key for user %s: %v", p.sshOpenData.Username, err)
+		}
 	}
 }
 

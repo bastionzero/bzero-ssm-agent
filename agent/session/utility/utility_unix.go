@@ -33,6 +33,7 @@ import (
 )
 
 var ShellPluginCommandName = "sh"
+var ShellPluginBashCommandName = "/bin/bash"
 var ShellPluginCommandArgs = []string{"-c"}
 
 const (
@@ -192,4 +193,43 @@ func (u *SessionUtil) DeleteIpcTempFile(sessionOrchestrationPath string) (bool, 
 	}
 
 	return true, nil
+}
+
+// Appends an authorized key entry to the authorized_keys file within username's .ssh directory
+func (u *SessionUtil) AddToAuthorizedKeyFile(username string, authorizedKey string) (bool, error) {
+	authorizedKeyFile := fmt.Sprintf("~%s/.ssh/authorized_keys", username)
+	appendKeyCmd := fmt.Sprintf("mkdir -p ~%s/.ssh && echo '%s' >> %s", username, authorizedKey, authorizedKeyFile)
+	shellCmdArgs := append(ShellPluginCommandArgs, lockFileAndRunCommand(authorizedKeyFile, appendKeyCmd))
+	cmd := exec.Command(ShellPluginBashCommandName, shellCmdArgs...)
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// The program has exited with an exit code != 0
+			return false, fmt.Errorf("error executing %s %v", cmd.Args, exitErr.Error())
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
+// Removes an authorized key entry from authorized_keys file within username's .ssh directory
+func (u *SessionUtil) RemoveFromAuthorizedKeyFile(username string, authorizedKey string) (bool, error) {
+	authorizedKeyFile := fmt.Sprintf("~%s/.ssh/authorized_keys", username)
+	// grep -v -F will return error code 1 if produces an empty match
+	// this is expected if there is only a single key in the authorized_keys file, so ignore error code for this command
+	removeKeyCmd := fmt.Sprintf("cd ~%s/.ssh && grep -v -F '%s' authorized_keys > .authorized_keys; mv .authorized_keys authorized_keys", username, authorizedKey)
+	shellCmdArgs := append(ShellPluginCommandArgs, lockFileAndRunCommand(authorizedKeyFile, removeKeyCmd))
+	cmd := exec.Command(ShellPluginBashCommandName, shellCmdArgs...)
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// The program has exited with an exit code != 0
+			return false, fmt.Errorf("error executing %s %v", cmd.Args, exitErr.Error())
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
+// Use flock to wait for exclusive lock on fileToLock for up to 10 seconds (or exit) and then run a command
+func lockFileAndRunCommand(fileToLock string, commandToRun string) string {
+	return fmt.Sprintf("flock -x -w 10 %s -c \"%s\"", fileToLock, commandToRun)
 }
