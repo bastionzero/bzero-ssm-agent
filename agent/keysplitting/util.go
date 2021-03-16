@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -344,13 +343,9 @@ func (k *KeysplittingHelper) VerifyHPointer(newPointer string) error {
 }
 
 func (k *KeysplittingHelper) VerifyTargetId(targetid string) error {
-	block, _ := pem.Decode([]byte(k.publicKey))
-	if block == nil {
-		kerr := k.BuildError("failed to parse PEM block containing the public key")
-		return &kerr
-	}
+	pubKeyBits, _ := base64.StdEncoding.DecodeString(k.publicKey)
 
-	if hash, _ := Hash(block.Bytes); hash != targetid {
+	if hash, _ := Hash(pubKeyBits); hash != targetid {
 		kerr := k.BuildError("Invalid TargetId")
 		return &kerr
 	} else {
