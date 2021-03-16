@@ -14,13 +14,14 @@ import (
 	"math/rand"
 	"time"
 
+	ed "crypto/ed25519"
+
 	"golang.org/x/crypto/sha3"
 
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	oidc "github.com/coreos/go-oidc/oidc"
-	eth "github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -38,12 +39,12 @@ type KeysplittingHelper struct {
 	orgId    string
 	provider string
 
+	googleIss    string
+	microsoftIss string
+
 	HPointer         string
 	ExpectedHPointer string
 	bzeCerts         map[string]mgsContracts.BZECert
-
-	googleIss    string
-	microsoftIss string
 }
 
 func Init(log log.T) (KeysplittingHelper, error) {
@@ -366,64 +367,16 @@ func (k *KeysplittingHelper) VerifyTargetId(targetid string) error {
 }
 
 func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bzehash string) bool {
-	// Make pem into *ecdsa.PrivateKey
-	bs, _ := hex.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
-	pubKey, _ := eth.UnmarshalPubkey(bs)
-	// block, _ := pem.Decode([]byte(k.bzeCerts[bzehash].ClientPublicKey))
-	// pubKey, _ := x509.ParsePKIXPublicKey(block.Bytes)
-	// ecdsaPubKey := pubKey.(*ecdsa.PublicKey)
+	pubKeyBits, _ := hex.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
+	pubkey := ed.PublicKey(pubKeyBits)
 
 	hash, _ := HashStruct(payload)
 	hashBits, _ := base64.StdEncoding.DecodeString(hash)
 
 	sigBits, _ := hex.DecodeString(sig)
 
-	sigPubKey, e := eth.SigToPub(hashBits, sigBits)
-	if e != nil {
-		k.log.Infof("sigPubKey error: %v", e)
-		k.log.Infof("payload hash: %v Signature: %v", hash, sig)
-		return false
-	}
+	k.log.Infof("key: %v message: %v sig: %v", k.bzeCerts[bzehash].ClientPublicKey, hash, sig)
 
-	if pubKey.Equal(sigPubKey) {
-		k.log.Infof("Client Signature Verified")
-		return true
-	} else {
-		k.log.Infof("Client Signature not Verified")
-		return false
-	}
-	return false
+	return ed.Verify(pubkey, hashBits, sigBits)
+
 }
-
-// func (k *KeysplittingHelper) SignPayload(payload interface{}) (string, error) {
-// 	if isPayloadPayload(payload) {
-// 		block, _ := pem.Decode([]byte(k.privateKey))
-// 		secKey, _ := x509.ParseECPrivateKey(block.Bytes)
-// 		hash, _ := HashStruct(payload)
-// 		bits, _ := base64.StdEncoding.DecodeString(hash)
-// 		if sig, err := eth.Sign(bits, secKey); err == nil {
-// 			k.log.Infof("signature is actually a thing")
-// 			pblock, _ := pem.Decode([]byte(k.publicKey))
-// 			pubKey, _ := x509.ParsePKIXPublicKey(pblock.Bytes)
-// 			ecdsaPubKey := pubKey.(*ecdsa.PublicKey)
-// 			_ = eth.CompressPubkey(ecdsaPubKey)
-// 			if eth.VerifySignature(pblock.Bytes, bits, sig) {
-// 				k.log.Infof("Signature successful TT")
-// 				return base64.StdEncoding.EncodeToString(sig), nil
-// 			} else {
-// 				k.log.Infof("Could not verify signature; pubkey: %#v privkey: %#v hash: %v", k.publicKey, k.privateKey, hash)
-// 				kerr := k.BuildError("Created Unverifiable signature")
-// 				return "", &kerr
-// 			}
-// 		} else {
-// 			k.log.Infof("Error creating signature; pubkey: %#v privkey: %#v hash: %v", k.publicKey, k.privateKey, hash)
-// 			kerr := k.BuildError("Error signing payload")
-// 			return "", &kerr
-// 		}
-// 	} else {
-// 		k.log.Infof("Attempting to sign invalid type in signature")
-// 		kerr := k.BuildError("Attempting to sign invalid type")
-// 		return "", &kerr
-// 	}
-
-// }

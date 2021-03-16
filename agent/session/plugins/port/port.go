@@ -272,6 +272,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			return err
 		}
 
+		// Client Signature verification
 		if ok := p.ksHelper.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); !ok {
 			kerr := p.ksHelper.BuildError("Signature Verification Failed")
 			return &kerr
