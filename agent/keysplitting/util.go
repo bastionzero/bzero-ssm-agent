@@ -359,7 +359,7 @@ func (k *KeysplittingHelper) VerifyTargetId(targetid string) error {
 }
 
 func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bzehash string) bool {
-	pubKeyBits, _ := hex.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
+	pubKeyBits, _ := base64.StdEncoding.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
 	pubkey := ed.PublicKey(pubKeyBits)
 
 	hash, err := HashStruct(payload)
@@ -375,7 +375,7 @@ func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bz
 }
 
 func (k *KeysplittingHelper) SignPayload(payload interface{}) (string, error) {
-	keyBytes, _ := hex.DecodeString(k.privateKey)
+	keyBytes, _ := base64.StdEncoding.DecodeString(k.publicKey)
 	privateKey := ed.PrivateKey(keyBytes)
 
 	hash, err := HashStruct(payload)

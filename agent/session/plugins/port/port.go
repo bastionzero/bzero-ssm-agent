@@ -240,6 +240,12 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			return err
 		}
 
+		// Client Signature verification
+		// if ok := p.ksHelper.VerifySignature(synpayload.Payload, synpayload.Signature, synpayload.Payload.BZECert); !ok {
+		// 	kerr := p.ksHelper.BuildError("Signature Verification Failed")
+		// 	return &kerr
+		// }
+
 		// Validate that TargetId == Hash(pubkey)
 		if err := p.ksHelper.VerifyTargetId(synpayload.Payload.TargetId); err != nil {
 			log.Infof("Invalid TargetId: %v", err)

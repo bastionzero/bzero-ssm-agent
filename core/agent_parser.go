@@ -16,7 +16,7 @@
 package main
 
 import (
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -121,8 +121,8 @@ func bzeroInit(log logger.T) {
 	}
 
 	// Convert our keys to hex format before storing it
-	pubkeyString := hex.EncodeToString([]byte(publicKey))
-	privkeyString := hex.EncodeToString([]byte(privateKey))
+	pubkeyString := base64.StdEncoding.EncodeToString([]byte(publicKey))
+	privkeyString := base64.StdEncoding.EncodeToString([]byte(privateKey))
 
 	keys := map[string]string{
 		"PublicKey":            pubkeyString,
