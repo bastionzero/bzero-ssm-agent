@@ -295,13 +295,13 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		// Do something with action
 		switch datapayload.Payload.Action {
-		case "ssh/open":
+		case string(mgsContracts.SshOpen):
 			if err := p.handleOpenShellDataAction(log, datapayload); err != nil {
 				ksError := p.ksHelper.BuildError(fmt.Sprintf("Error processing open shell data message %s", err.Error()))
 				return &ksError
 			}
 			log.Infof("ssh/open action complete!")
-		case "ssh/close":
+		case string(mgsContracts.SshClose):
 			log.Infof("ssh/close action not yet implemented on ssm-agent")
 		default:
 			log.Errorf("Attempted Keysplitting action not recognized: %v", datapayload.Payload.Action)
