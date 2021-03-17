@@ -23,9 +23,12 @@ import (
 
 const (
 	googleUrl    = "https://accounts.google.com"
-	microsoftUrl = "https://login.microsoftonline.com/"
-	BZeroConfig  = "BZeroConfig"   // TODO: change ref in core to this, change agent_parser
-	week         = time.Hour * 168 // 168 hours = 7 days
+	microsoftUrl = "https://login.microsoftonline.com"
+	// this is the tenant id Microsoft uses when the account is a personal account (not a work/school account)
+	// https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens#payload-claims)
+	microsoftPersonalAccountTenantId = "9188040d-6c67-4c5b-b112-36a304b66dad"
+	BZeroConfig                      = "BZeroConfig"   // TODO: change ref in core to this, change agent_parser
+	week                             = time.Hour * 168 // 168 hours = 7 days
 )
 
 type KeysplittingHelper struct {
@@ -65,14 +68,27 @@ func Init(log log.T) (KeysplittingHelper, error) {
 		log:          log,
 		publicKey:    bzeroConfig["PublicKey"],
 		privateKey:   bzeroConfig["PrivateKey"],
-		orgId:        bzeroConfig["OrgId"],
+		orgId:        bzeroConfig["OrganizationID"],
 		provider:     bzeroConfig["OrganizationProvider"], // Either Google or Microsoft
 		bzeCerts:     make(map[string]mgsContracts.BZECert),
 		googleIss:    googleUrl,
-		microsoftIss: microsoftUrl + bzeroConfig["OrgId"],
+		microsoftIss: getMicrosoftIssuerUrl(bzeroConfig["OrganizationID"]),
 	}
 
 	return helper, nil
+}
+
+func getMicrosoftIssuerUrl(orgId string) string {
+	// Handles personal accounts by using microsoftPersonalAccountTenantId as the tenantId
+	// see https://github.com/coreos/go-oidc/issues/121
+	tenantId := ""
+	if orgId == "None" {
+		tenantId = microsoftPersonalAccountTenantId
+	} else {
+		tenantId = orgId
+	}
+
+	return microsoftUrl + "/" + tenantId + "/v2.0"
 }
 
 // If this is the beginning of the hash chain, then we create a nonce with a random value,
@@ -142,11 +158,13 @@ func HashStruct(payload interface{}) (string, error) {
 // Currently just a pass-through but eventually the hub of operations
 func (k *KeysplittingHelper) VerifyBZECert(cert mgsContracts.BZECert) error {
 	if err := k.verifyIdToken(cert.InitialIdToken, cert, true, true); err != nil {
-		return fmt.Errorf("Invalid InitialIdToken: %v", err)
+		kerr := k.BuildError(fmt.Sprintf("Invalid InitialIdToken: %v", err))
+		return &kerr
 		// TODO: Expire this token after 7 days or whatever
 	}
 	if err := k.verifyIdToken(cert.CurrentIdToken, cert, false, false); err != nil {
-		return fmt.Errorf("Invalid CurrentIdToken: %v", err)
+		kerr := k.BuildError(fmt.Sprintf("Invalid CurrentIdToken: %v", err))
+		return &kerr
 	}
 
 	// Add client's BZECert to map of BZECerts
@@ -178,6 +196,10 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert mgsContracts.BZ
 
 	issUrl := ""
 	switch k.provider {
+	case "None":
+		// Skip ID token verification if the agent's org provider is set to None
+		k.log.Info("Skipping ID Token Verification: org provider set to None")
+		return nil
 	case "google":
 		issUrl = k.googleIss
 	case "microsoft":
@@ -204,7 +226,7 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert mgsContracts.BZ
 	var claims struct {
 		HD       string `json:"hd"` // Google Org ID
 		Nonce    string `json:"nonce"`
-		Org      string `json:"tid"` // Microsoft Org ID or something, check!
+		TID      string `json:"tid"` // Microsoft Tenant ID
 		IssuedAt int64  `json:"iat"` // Unix datetime of issuance
 	}
 
@@ -221,8 +243,26 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert mgsContracts.BZ
 				return &kerr
 			}
 		}
-		if claims.Org != k.orgId {
-			return fmt.Errorf("ID Token verification error: User's org does not match the target's org")
+
+		k.log.Infof("ID Token claims: {HD:%s, Nonce:%s, Org:%s}", claims.HD, claims.Nonce, claims.TID)
+		k.log.Infof("Agent Org Info: {orgID:%s, orgProvider:%s}", k.orgId, k.provider)
+
+		// Only validate org claim if there is an orgId associated with this
+		// agent. This will be empty for orgs associated with a personal gsuite/microsoft account
+		if k.orgId != "None" {
+			orgClaimValue := ""
+			switch k.provider {
+			case "google":
+				orgClaimValue = claims.HD
+			case "microsoft":
+				orgClaimValue = claims.TID
+			default:
+				return fmt.Errorf("Unhandled Provider type, %v", k.provider)
+			}
+
+			if orgClaimValue != k.orgId {
+				return fmt.Errorf("ID Token verification error: User's org does not match the target's org")
+			}
 		}
 		if err = verifyAuthNonce(cert, claims.Nonce); err != nil && verifyNonce {
 			return err
