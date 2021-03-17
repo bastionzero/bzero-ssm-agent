@@ -371,15 +371,7 @@ type HandshakeCompletePayload struct {
 // ErrHandlerNotReady message indicates that the session plugin's incoming message handler is not ready
 var ErrHandlerNotReady = errors.New("message handler is not ready, rejecting incoming packet")
 
-//Keysplitting Type Definitions
-
-// type KeysplittingAction string
-
-// // This will help us fix and control the defined actions any user can take
-// const (
-// 	SshOpen  KeysplittingAction = "ssh/open"
-// 	SshClose KeysplittingAction = "ssh/close"
-// )
+// Keysplitting Type Definitions
 
 // BZEcert type for parsing client's certificate
 type BZECert struct {
@@ -445,6 +437,19 @@ type DataAckPayloadPayload struct {
 	HPointer        string `json:"hPointer"`
 	Payload         string `json:"payload"`
 	TargetPublicKey string `json:"targetPublicKey"`
+}
+
+type KeysplittingAction string
+
+// This will help us fix and control the defined actions any user can take
+const (
+	SshOpen  KeysplittingAction = "ssh/open"
+	SshClose KeysplittingAction = "ssh/close"
+)
+
+type SshOpenActionPayload struct {
+	Username  string `json:"username"`
+	SshPubKey string `json:"sshPubKey"`
 }
 
 // This error is to help return the SYNACK or DATACK in the correct
