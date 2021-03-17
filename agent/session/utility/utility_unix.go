@@ -199,13 +199,25 @@ func (u *SessionUtil) DeleteIpcTempFile(sessionOrchestrationPath string) (bool, 
 func (u *SessionUtil) AddToAuthorizedKeyFile(username string, authorizedKey string) (bool, error) {
 	// make a .ssh directory for the user if it doesnt exist and then append the authorizedKey string to the authorized_keys file within the .ssh directory
 	authorizedKeyFile := fmt.Sprintf("~%s/.ssh/authorized_keys", username)
-	appendKeyCmd := fmt.Sprintf("mkdir -p ~%s/.ssh && echo '%s' >> %s", username, authorizedKey, authorizedKeyFile)
-	shellCmdArgs := append(ShellPluginCommandArgs, lockFileAndRunCommand(authorizedKeyFile, appendKeyCmd))
-	cmd := exec.Command(ShellPluginBashCommandName, shellCmdArgs...)
-	if err := cmd.Run(); err != nil {
+	sshFolder := fmt.Sprintf("~%s/.ssh", username)
+	createSshDirectory := fmt.Sprintf("mkdir -p %s", sshFolder)
+	shellCmdArgsCreateSshDirectory := append(ShellPluginCommandArgs, createSshDirectory)
+	cmdCreateSshDirectory := exec.Command(ShellPluginBashCommandName, shellCmdArgsCreateSshDirectory...)
+	if err := cmdCreateSshDirectory.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			// The program has exited with an exit code != 0
-			return false, fmt.Errorf("error executing %s %v", cmd.Args, exitErr.Error())
+			return false, fmt.Errorf("error executing %s %v", cmdCreateSshDirectory.Args, exitErr.Error())
+		}
+		return false, nil
+	}
+
+	appendKeyCmd := fmt.Sprintf("echo '%s' >> %s", authorizedKey, authorizedKeyFile)
+	shellCmdArgsAppendKey := append(ShellPluginCommandArgs, lockFolderAndRunCommand(authorizedKeyFile, appendKeyCmd))
+	cmdAppendKey := exec.Command(ShellPluginBashCommandName, shellCmdArgsAppendKey...)
+	if err := cmdAppendKey.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// The program has exited with an exit code != 0
+			return false, fmt.Errorf("error executing %s %v", cmdAppendKey.Args, exitErr.Error())
 		}
 		return false, nil
 	}
@@ -218,9 +230,9 @@ func (u *SessionUtil) RemoveFromAuthorizedKeyFile(username string, authorizedKey
 	// save the grep output to a temporary .authorized_keys file and then use this to overwrite the authorized_keys file
 	// grep will return error code 1 if it produces an empty match this is expected if there is only a single key in the authorized_keys file
 	// so ignore error code for this command using ';' instead of '&&' to handle this edge case
-	authorizedKeyFile := fmt.Sprintf("~%s/.ssh/authorized_keys", username)
+	sshKeyFolder := fmt.Sprintf("~%s/.ssh", username)
 	removeKeyCmd := fmt.Sprintf("cd ~%s/.ssh && grep -v -F '%s' authorized_keys > .authorized_keys; mv .authorized_keys authorized_keys", username, authorizedKey)
-	shellCmdArgs := append(ShellPluginCommandArgs, lockFileAndRunCommand(authorizedKeyFile, removeKeyCmd))
+	shellCmdArgs := append(ShellPluginCommandArgs, lockFolderAndRunCommand(sshKeyFolder, removeKeyCmd))
 	cmd := exec.Command(ShellPluginBashCommandName, shellCmdArgs...)
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -233,6 +245,6 @@ func (u *SessionUtil) RemoveFromAuthorizedKeyFile(username string, authorizedKey
 }
 
 // Use flock to wait for exclusive lock on fileToLock for up to 10 seconds (or exit) and then run a command
-func lockFileAndRunCommand(fileToLock string, commandToRun string) string {
-	return fmt.Sprintf("flock -x -w 10 %s -c \"%s\"", fileToLock, commandToRun)
+func lockFolderAndRunCommand(folderToLock string, commandToRun string) string {
+	return fmt.Sprintf("flock -x -w 10 %s -c \"%s\"", folderToLock, commandToRun)
 }
