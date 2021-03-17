@@ -60,7 +60,7 @@ func main() {
 
 	fmt.Printf("Agent Version: %v", versionStr)
 	if err := ioutil.WriteFile(filepath.Join("VERSION"), []byte(versionStr), appconfig.ReadWriteAccess); err != nil {
-		log.Fatalf("Error writing to VERSION file. %v", err)
+		fmt.Printf("Error writing to VERSION file. %v", err)
 	}
 
 	// default values
