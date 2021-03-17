@@ -193,7 +193,7 @@ func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
 	nonceHash, _ := Hash(nonce)
 
 	decodedRand, _ := base64.StdEncoding.DecodeString(cert.Rand)
-	message, err := Hash(base64.StdEncoding.DecodeString(decodedRand))
+	message, err := Hash(decodedRand)
 	if err != nil {
 		return err
 	}
