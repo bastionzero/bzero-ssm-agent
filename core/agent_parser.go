@@ -16,6 +16,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -24,8 +25,7 @@ import (
 	"strings"
 
 	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
+	ed "crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"
 
@@ -110,11 +110,9 @@ func bzeroInit(log logger.T) {
 	// BZero Init function to:
 	// 	* Generate Pub/Priv keypair
 	//  * Store keys along with passed orgID
-	// ref: https://www.socketloop.com/tutorials/golang-example-for-ecdsa-elliptic-curve-digital-signature-algorithm-functions
-	pubkeyCurve := elliptic.P256() //see http://golang.org/pkg/crypto/elliptic/#P256
 
-	// Generate our private Key
-	privatekey, err := ecdsa.GenerateKey(pubkeyCurve, rand.Reader) // this generates a public & private key pair
+	// Generate public private key pair along ed25519 curve
+	publicKey, privateKey, err := ed.GenerateKey(nil)
 
 	// Catch any errors that might have been generated
 	if err != nil {
@@ -122,13 +120,13 @@ func bzeroInit(log logger.T) {
 		os.Exit(1)
 	}
 
-	pubkey := &privatekey.PublicKey
+	// Convert our keys to hex format before storing it
+	pubkeyString := base64.StdEncoding.EncodeToString([]byte(publicKey))
+	privkeyString := base64.StdEncoding.EncodeToString([]byte(privateKey))
 
-	// Marshal our data before storing it
-	privatekeyString, pubkeyString := encode(privatekey, pubkey)
 	keys := map[string]string{
 		"PublicKey":            pubkeyString,
-		"PrivateKey":           privatekeyString,
+		"PrivateKey":           privkeyString,
 		"OrganizationID":       orgID,
 		"OrganizationProvider": orgProvider,
 	}

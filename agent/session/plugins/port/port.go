@@ -244,13 +244,16 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			log.Infof("BZECert did not pass check: %v", err)
 			return err
 		}
-		log.Infof("Check on BZECert passed...")
-		bzejson, _ := json.Marshal(synpayload.Payload.BZECert)
+
+		// Client Signature verification
 		bzehash, _ := keysplitting.HashStruct(synpayload.Payload.BZECert)
-		log.Infof("BZECerts updated, %v: %v", bzehash, string(bzejson))
+		if ok := p.ksHelper.VerifySignature(synpayload.Payload, synpayload.Signature, bzehash); !ok {
+			kerr := p.ksHelper.BuildError("Signature Verification Failed")
+			return &kerr
+		}
 
 		// Validate that TargetId == Hash(pubkey)
-		if err := p.ksHelper.ValidateTargetId(synpayload.Payload.TargetId); err != nil {
+		if err := p.ksHelper.VerifyTargetId(synpayload.Payload.TargetId); err != nil {
 			log.Infof("Invalid TargetId: %v", err)
 			return err
 		}
@@ -281,14 +284,20 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 			return err
 		}
 
+		// Client Signature verification
+		if ok := p.ksHelper.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); !ok {
+			kerr := p.ksHelper.BuildError("Signature Verification Failed")
+			return &kerr
+		}
+
 		// Validate hpointer
-		if err := p.ksHelper.ValidateHPointer(datapayload.Payload.HPointer); err != nil {
+		if err := p.ksHelper.VerifyHPointer(datapayload.Payload.HPointer); err != nil {
 			log.Infof("Expected Hpointer: %v did not equal received Hpointer %v.", p.ksHelper.ExpectedHPointer, datapayload.Payload.HPointer)
 			return err
 		}
 
 		// Validate that TargetId == Hash(pubkey)
-		if err := p.ksHelper.ValidateTargetId(datapayload.Payload.TargetId); err != nil {
+		if err := p.ksHelper.VerifyTargetId(datapayload.Payload.TargetId); err != nil {
 			log.Infof("Invalid TargetId: %v", err)
 			return err
 		}
