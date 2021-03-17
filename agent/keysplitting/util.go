@@ -178,7 +178,7 @@ func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
 	// pubKeyBits, _ := base64.StdEncoding.DecodeString(cert.ClientPublicKey)
 	// pubkey := ed.PublicKey(pubKeyBits)
 
-	hash, err := Hash(cert.Rand)
+	message, err := Hash(cert.Rand)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
 	// sigBits, _ := hex.DecodeString(cert.SignatureOnRand)
 
 	// if !ed.Verify(pubkey, hashBits, sigBits) {
-	if !verifySignHelper(cert.ClientPublicKey, hash, cert.SignatureOnRand) {
+	if !verifySignHelper(cert.ClientPublicKey, message, cert.SignatureOnRand) {
 		return fmt.Errorf("Invalid signature on rand in BZECert Nonce")
 	}
 
@@ -413,9 +413,5 @@ func verifySignHelper(publickey string, message string, sig string) bool {
 
 	sigBits, _ := base64.StdEncoding.DecodeString(sig)
 
-	if !ed.Verify(pubkey, hashBits, sigBits) {
-		return false
-	} else {
-		return true
-	}
+	return ed.Verify(pubkey, hashBits, sigBits)
 }
