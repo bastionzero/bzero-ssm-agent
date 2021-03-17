@@ -5,11 +5,11 @@ package keysplitting
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"time"
 
 	ed "crypto/ed25519"
@@ -25,7 +25,8 @@ import (
 const (
 	googleUrl    = "https://accounts.google.com"
 	microsoftUrl = "https://login.microsoftonline.com/"
-	BZeroConfig  = "BZeroConfig" // TODO: change ref in core to this, change agent_parser
+	BZeroConfig  = "BZeroConfig"   // TODO: change ref in core to this, change agent_parser
+	week         = time.Hour * 168 // 168 hours = 7 days
 )
 
 type KeysplittingHelper struct {
@@ -40,7 +41,7 @@ type KeysplittingHelper struct {
 	googleIss    string
 	microsoftIss string
 
-	HPointer         string
+	HPointer         string `default:""`
 	ExpectedHPointer string
 	bzeCerts         map[string]mgsContracts.BZECert
 }
@@ -68,7 +69,6 @@ func Init(log log.T) (KeysplittingHelper, error) {
 		orgId:        bzeroConfig["OrgId"],
 		provider:     bzeroConfig["OrganizationProvider"], // Either Google or Microsoft
 		bzeCerts:     make(map[string]mgsContracts.BZECert),
-		HPointer:     "",
 		googleIss:    googleUrl,
 		microsoftIss: microsoftUrl + bzeroConfig["OrgId"],
 	}
@@ -76,12 +76,12 @@ func Init(log log.T) (KeysplittingHelper, error) {
 	return helper, nil
 }
 
-// If this is the beginning of the hash chain, then we select a random value, otherwise
-// we use the hash of the previous value to maintain log immutability
+// If this is the beginning of the hash chain, then we create a nonce with a random value,
+// otherwise we use the hash of the previous value to maintain the hash chain and immutability
 func (k *KeysplittingHelper) GetNonce() string {
 	if k.HPointer == "" {
-		b := make([]byte, 32) // 32 to make it same length as hash pointer
-		rand.Read(b)
+		b := make([]byte, 32) // 32-length byte array, to make it same length as hash pointer
+		rand.Read(b)          // populate with random bytes
 		return base64.StdEncoding.EncodeToString(b)
 	} else {
 		return k.HPointer
@@ -100,7 +100,7 @@ func isPayload(a interface{}) bool {
 }
 
 func isKeysplittingStruct(a interface{}) bool {
-	switch a.(type) {
+	switch a.(type) { // switch on a's type
 	case mgsContracts.SynPayloadPayload:
 		return true
 	case mgsContracts.SynAckPayloadPayload:
@@ -119,17 +119,17 @@ func isKeysplittingStruct(a interface{}) bool {
 // Function will accept any type of variable but will only hash strings or byte(s)
 // returns a base64 encoded string because otherwise its unprintable nonsense
 func Hash(a interface{}) (string, error) {
-	switch v := a.(type) {
+	switch a.(type) {
 	case string:
-		b, _ := a.(string) // extra type assertion required to hash
-		hash := sha3.Sum256([]byte(b))
+		aString, _ := a.(string) // extra type assertion required to hash
+		hash := sha3.Sum256([]byte(aString))
 		return base64.StdEncoding.EncodeToString(hash[:]), nil // This returns type [32]byte but we want a slice so we [:]
 	case []byte:
-		b, _ := a.([]byte)
-		hash := sha3.Sum256(b)
+		aBytes, _ := a.([]byte)
+		hash := sha3.Sum256(aBytes)
 		return base64.StdEncoding.EncodeToString(hash[:]), nil
 	default:
-		return "", fmt.Errorf("Error only strings and []bytes are hashable.  Provided type: %v", v)
+		return "", fmt.Errorf("Error only strings and []bytes are hashable.  Provided type: %T", a)
 	}
 }
 
@@ -200,7 +200,7 @@ func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
 
 // This function verifies id_tokens
 func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert mgsContracts.BZECert, skipExpiry bool, verifyNonce bool) error {
-	ctx := context.TODO()
+	ctx := context.TODO() // Gives us non-nil empty context
 	config := &oidc.Config{
 		SkipClientIDCheck: true,
 		SkipExpiryCheck:   skipExpiry,
@@ -245,8 +245,8 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert mgsContracts.BZ
 		// Manual check to see if InitialIdToken is expired
 		if skipExpiry {
 			now := time.Now()
-			iat := time.Unix(claims.IssuedAt, 0)     // Confirmed both Microsoft and Google use Unix
-			if now.After(iat.Add(time.Hour * 168)) { // 168 hours = 7 days
+			iat := time.Unix(claims.IssuedAt, 0) // Confirmed both Microsoft and Google use Unix
+			if now.After(iat.Add(week)) {
 				k.log.Infof("InitialIdToken Expired: time now = %v, iat = %v", now, iat)
 				kerr := k.BuildError(fmt.Sprintf("InitialIdToken Expired: time now = %v, iat = %v", now, iat))
 				return &kerr
