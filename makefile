@@ -42,7 +42,9 @@ finalize:: build-tests copy-package-dep
 
 bzero-build:: build-linux build-freebsd build-linux-386 build-arm build-arm64 build-darwin
 
-bzero-release:: clean checkstyle pre-release bzero-build prepack bzero-package
+bzero-prepack:: cpy-plugins prepack-linux prepack-linux-arm64 prepack-linux-386
+
+bzero-release:: clean checkstyle pre-release bzero-build bzero-prepack bzero-package
 
 bzero-package:: create-package-folder package-rpm package-deb
 
