@@ -173,25 +173,18 @@ func (k *KeysplittingHelper) VerifyBZECert(cert mgsContracts.BZECert) error {
 
 func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
 	nonce := cert.ClientPublicKey + cert.SignatureOnRand + cert.Rand
-	hash, _ := Hash(nonce)
+	nonceHash, _ := Hash(nonce)
 
-	// pubKeyBits, _ := base64.StdEncoding.DecodeString(cert.ClientPublicKey)
-	// pubkey := ed.PublicKey(pubKeyBits)
-
-	message, err := Hash(cert.Rand)
+	decodedRand, _ := base64.StdEncoding.DecodeString(cert.Rand)
+	message, err := Hash(base64.StdEncoding.DecodeString(decodedRand))
 	if err != nil {
 		return err
 	}
-	// hashBits, _ := base64.StdEncoding.DecodeString(hash)
-
-	// sigBits, _ := hex.DecodeString(cert.SignatureOnRand)
-
-	// if !ed.Verify(pubkey, hashBits, sigBits) {
 	if !verifySignHelper(cert.ClientPublicKey, message, cert.SignatureOnRand) {
 		return fmt.Errorf("Invalid signature on rand in BZECert Nonce")
 	}
 
-	if authNonce == hash {
+	if authNonce == nonceHash {
 		return nil
 	} else {
 		return fmt.Errorf("Invalid nonce in BZECert")
@@ -369,9 +362,6 @@ func (k *KeysplittingHelper) VerifyTargetId(targetid string) error {
 }
 
 func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bzehash string) bool {
-	// pubKeyBits, _ := base64.StdEncoding.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
-	// pubkey := ed.PublicKey(pubKeyBits)
-
 	publickey := k.bzeCerts[bzehash].ClientPublicKey
 
 	hash, err := HashStruct(payload)
@@ -379,12 +369,8 @@ func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bz
 		k.log.Infof(err.Error()) // TODO: make this report better
 		return false
 	}
-	// hashBits, _ := base64.StdEncoding.DecodeString(hash)
-
-	// sigBits, _ := hex.DecodeString(sig)
 
 	return verifySignHelper(publickey, hash, sig)
-	// return ed.Verify(pubkey, hashBits, sigBits)
 }
 
 func (k *KeysplittingHelper) SignPayload(payload interface{}) (string, error) {
