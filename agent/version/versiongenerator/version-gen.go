@@ -74,24 +74,24 @@ func main() {
 	t := template.Must(template.New("version").Parse(string(licenseStr) + versiongoTemplate))
 	err = t.Execute(&newVersion, info)
 	if err != nil {
-		log.Fatalf("Error applying template: %v", err)
+		fmt.Printf("Error applying template: %v", err)
 	}
 
 	oldContent, err := ioutil.ReadFile(versionFilePath)
 	if err != nil {
-		log.Fatalf("Error reading old version file: %v", err)
+		fmt.Printf("Error reading old version file: %v", err)
 	}
 
 	if newVersion.String() != string(oldContent) {
 		outFile, err := os.Create(versionFilePath)
 		if err != nil {
-			log.Fatalf("Unable to create output version file: %v", err)
+			fmt.Printf("Unable to create output version file: %v", err)
 		}
 		defer outFile.Close()
 
 		err = t.Execute(outFile, info)
 		if err != nil {
-			log.Fatalf("Error applying template: %v", err)
+			fmt.Printf("Error applying template: %v", err)
 		}
 	}
 
