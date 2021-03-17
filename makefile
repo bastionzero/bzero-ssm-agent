@@ -40,7 +40,9 @@ package-src:: clean quick-integtest checkstyle pre-release cpy-plugins finalize
 finalize:: build-tests copy-package-dep
 
 
-bzero-release:: clean checkstyle pre-release build prepack bzero-package
+bzero-build:: build-linux build-freebsd build-linux-386 build-arm build-arm64 build-darwin
+
+bzero-release:: clean checkstyle pre-release bzero-build prepack bzero-package
 
 bzero-package:: create-package-folder package-rpm package-deb
 
