@@ -6,7 +6,6 @@ package keysplitting
 import (
 	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -176,18 +175,19 @@ func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
 	nonce := cert.ClientPublicKey + cert.SignatureOnRand + cert.Rand
 	hash, _ := Hash(nonce)
 
-	pubKeyBits, _ := base64.StdEncoding.DecodeString(cert.ClientPublicKey)
-	pubkey := ed.PublicKey(pubKeyBits)
+	// pubKeyBits, _ := base64.StdEncoding.DecodeString(cert.ClientPublicKey)
+	// pubkey := ed.PublicKey(pubKeyBits)
 
 	hash, err := Hash(cert.Rand)
 	if err != nil {
 		return err
 	}
-	hashBits, _ := base64.StdEncoding.DecodeString(hash)
+	// hashBits, _ := base64.StdEncoding.DecodeString(hash)
 
-	sigBits, _ := hex.DecodeString(cert.SignatureOnRand)
+	// sigBits, _ := hex.DecodeString(cert.SignatureOnRand)
 
-	if !ed.Verify(pubkey, hashBits, sigBits) {
+	// if !ed.Verify(pubkey, hashBits, sigBits) {
+	if !verifySignHelper(cert.ClientPublicKey, hash, cert.SignatureOnRand) {
 		return fmt.Errorf("Invalid signature on rand in BZECert Nonce")
 	}
 
@@ -369,19 +369,22 @@ func (k *KeysplittingHelper) VerifyTargetId(targetid string) error {
 }
 
 func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bzehash string) bool {
-	pubKeyBits, _ := base64.StdEncoding.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
-	pubkey := ed.PublicKey(pubKeyBits)
+	// pubKeyBits, _ := base64.StdEncoding.DecodeString(k.bzeCerts[bzehash].ClientPublicKey)
+	// pubkey := ed.PublicKey(pubKeyBits)
+
+	publickey := k.bzeCerts[bzehash].ClientPublicKey
 
 	hash, err := HashStruct(payload)
 	if err != nil {
 		k.log.Infof(err.Error()) // TODO: make this report better
 		return false
 	}
-	hashBits, _ := base64.StdEncoding.DecodeString(hash)
+	// hashBits, _ := base64.StdEncoding.DecodeString(hash)
 
-	sigBits, _ := hex.DecodeString(sig)
+	// sigBits, _ := hex.DecodeString(sig)
 
-	return ed.Verify(pubkey, hashBits, sigBits)
+	return verifySignHelper(publickey, hash, sig)
+	// return ed.Verify(pubkey, hashBits, sigBits)
 }
 
 func (k *KeysplittingHelper) SignPayload(payload interface{}) (string, error) {
@@ -396,4 +399,23 @@ func (k *KeysplittingHelper) SignPayload(payload interface{}) (string, error) {
 
 	sig := ed.Sign(privateKey, hashBits)
 	return base64.StdEncoding.EncodeToString(sig), nil
+}
+
+// args:
+//    publickey: base64 encoded bytes of an ed25519 public key, length 32
+//    message: base64 encoded hash value of length 32
+//    sig: base64 encoded ed25519 signature
+func verifySignHelper(publickey string, message string, sig string) bool {
+	pubKeyBits, _ := base64.StdEncoding.DecodeString(publickey)
+	pubkey := ed.PublicKey(pubKeyBits)
+
+	hashBits, _ := base64.StdEncoding.DecodeString(message)
+
+	sigBits, _ := base64.StdEncoding.DecodeString(sig)
+
+	if !ed.Verify(pubkey, hashBits, sigBits) {
+		return false
+	} else {
+		return true
+	}
 }
