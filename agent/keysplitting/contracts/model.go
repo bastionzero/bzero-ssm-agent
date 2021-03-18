@@ -106,3 +106,12 @@ type KeysplittingError struct {
 func (r *KeysplittingError) Error() string {
 	return r.Err.Error()
 }
+
+type KeysplittingErrorType string
+
+const (
+	BZECertIDTokenValidationError KeysplittingErrorType = "BZECertIDTokenValidationError"
+	BZECertInvalidNonce           KeysplittingErrorType = "BZECertInvalidNonce"
+	BZECertUnverifiedEmail        KeysplittingErrorType = "BZECertUnverifiedEmail"
+	BZECertInvalidHash            KeysplittingErrorType = "BZECertInvalidHash"
+)
