@@ -33,6 +33,7 @@ phases:
       - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/$LatestVersion
       - echo Copying all files to latest folder...
       - cp -a $ReleaseDir/$LatestVersion $ReleaseDir/latest
+      - aws cloudfront create-invalidation --distribution-id=E3A9PBCN2XC2Y2 --paths '/release/latest/*'
 artifacts:
   files:
     - "**/*"
