@@ -222,7 +222,7 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 		return k.BuildError(message, kysplContracts.BZECertInvalidProvider)
 	}
 
-	provider, err := oidc.NewProvider(ctx, issUrl) // requires a discovery document
+	provider, err := oidc.NewProvider(ctx, issUrl) // Any valid issURL requires a discovery document
 	if err != nil {
 		message := fmt.Sprintf("Error establishing OIDC provider during validation: %v", err)
 		return k.BuildError(message, kysplContracts.BZECertInvalidProvider)
@@ -283,22 +283,6 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 			return k.BuildError("User's OrgId does not match target's expected Microsoft tid", kysplContracts.BZECertInvalidProvider)
 		}
 	}
-
-	// if k.orgId != "None" {
-	// 	orgClaimValue := ""
-	// 	switch k.provider {
-	// 	case "google":
-	// 		orgClaimValue = claims.HD
-	// 	case "microsoft":
-	// 		orgClaimValue = claims.TID
-	// 	default:
-	// 		return fmt.Errorf("Unhandled Provider type, %v", k.provider)
-	// 	}
-
-	// 	if orgClaimValue != k.orgId {
-	// 		return fmt.Errorf("ID Token verification error: User's org does not match the target's org")
-	// 	}
-	// }
 
 	return nil
 }
