@@ -200,7 +200,7 @@ func (u *SessionUtil) AddToAuthorizedKeyFile(username string, authorizedKey stri
 	// make a .ssh directory for the user if it doesnt exist and then append the authorizedKey string to the authorized_keys file within the .ssh directory
 	authorizedKeyFile := fmt.Sprintf("~%s/.ssh/authorized_keys", username)
 	sshFolder := fmt.Sprintf("~%s/.ssh", username)
-	createSshDirectory := fmt.Sprintf("mkdir -p -m 700 %s", sshFolder)
+	createSshDirectory := fmt.Sprintf("mkdir -p %s", sshFolder)
 	shellCmdArgsCreateSshDirectory := append(ShellPluginCommandArgs, createSshDirectory)
 	cmdCreateSshDirectory := exec.Command(ShellPluginBashCommandName, shellCmdArgsCreateSshDirectory...)
 	if err := cmdCreateSshDirectory.Run(); err != nil {
