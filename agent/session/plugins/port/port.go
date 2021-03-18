@@ -223,83 +223,74 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
 
 	case mgsContracts.Syn:
-		log.Infof("Syn payload received: %v", string(streamDataMessage.Payload))
+		log.Infof("[Keysplitting] Syn payload received: %v", string(streamDataMessage.Payload))
 
 		var synpayload kysplContracts.SynPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
 			// not a keysplitting error, also we can't possibly have the hpointer so it wouldn't be possible to associate the error with the correct message
 			return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
 		}
-		log.Infof("SynPayload unmarshalled...")
+		log.Infof("[Keysplitting] SynPayload unmarshalled...")
 
 		// Get nonce either rand or hpointer (if there is one)
 		nonce := p.ksHelper.GetNonce()
 
 		// Update hpointer so we have it for the error messages
 		if err := p.ksHelper.UpdateHPointer(synpayload.Payload); err != nil {
-			log.Info("error updating hpointer: %v", err)
+			return err
 		}
 
 		// pretty legit BZECert verification
 		if err := p.ksHelper.VerifyBZECert(synpayload.Payload.BZECert); err != nil {
-			log.Infof("BZECert did not pass check: %v", err)
 			return err
 		}
 
 		// Client Signature verification
 		bzehash, _ := keysplitting.HashStruct(synpayload.Payload.BZECert)
-		if ok := p.ksHelper.VerifySignature(synpayload.Payload, synpayload.Signature, bzehash); !ok {
-			kerr := p.ksHelper.BuildError("Signature Verification Failed")
-			return &kerr
+		if err := p.ksHelper.VerifySignature(synpayload.Payload, synpayload.Signature, bzehash); err != nil {
+			return err
 		}
 
 		// Validate that TargetId == Hash(pubkey)
 		if err := p.ksHelper.VerifyTargetId(synpayload.Payload.TargetId); err != nil {
-			log.Infof("Invalid TargetId: %v", err)
 			return err
 		}
 
 		// Tells parent Datachannel object to send SYNACK message with specified payload
-		return &kysplContracts.KeysplittingError{
-			Err:     errors.New("SYNACK"),
-			Content: p.ksHelper.BuildSynAck(nonce, synpayload),
-		}
+		return p.ksHelper.BuildSynAck(nonce, synpayload)
+
 	case mgsContracts.Data:
-		log.Infof("Data payload received: %v", string(streamDataMessage.Payload))
+		log.Infof("[Keysplitting] Data payload received: %v", string(streamDataMessage.Payload))
 
 		var datapayload kysplContracts.DataPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
-			return fmt.Errorf("Error occurred while parsing DataPayload json: %v", err)
+			return fmt.Errorf("[Keysplitting] Error occurred while parsing DataPayload json: %v", err)
 		}
-		log.Infof("DataPayload unmarshalled...")
+		log.Infof("[Keysplitting] DataPayload unmarshalled...")
 
 		// Update hpointer, needs to be done asap for error reporting purposes
 		if err := p.ksHelper.UpdateHPointer(datapayload.Payload); err != nil {
-			log.Info("error updating hpointer: %v", err)
+			return err
 		}
 
 		// Make sure BZECert hash matches existing hash
 		// In the future we should be getting a hash here that we can easily lookup in the map
 		if err := p.ksHelper.CheckBZECert(datapayload.Payload.BZECert); err != nil {
-			log.Infof("Invalid BZECert.  Does not match a previously recieved SYN")
 			return err
 		}
 
-		// Client Signature verification
-		if ok := p.ksHelper.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); !ok {
-			kerr := p.ksHelper.BuildError("Signature Verification Failed")
-			return &kerr
+		// Verify client signature
+		if err := p.ksHelper.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); err != nil {
+			return err
 		}
 
-		// Validate hpointer
+		// Validate hash pointer
 		if err := p.ksHelper.VerifyHPointer(datapayload.Payload.HPointer); err != nil {
-			log.Infof("Expected Hpointer: %v did not equal received Hpointer %v.", p.ksHelper.ExpectedHPointer, datapayload.Payload.HPointer)
 			return err
 		}
 
 		// Validate that TargetId == Hash(pubkey)
 		if err := p.ksHelper.VerifyTargetId(datapayload.Payload.TargetId); err != nil {
-			log.Infof("Invalid TargetId: %v", err)
 			return err
 		}
 
@@ -307,21 +298,18 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		switch datapayload.Payload.Action {
 		case string(kysplContracts.SshOpen):
 			if err := p.handleOpenShellDataAction(log, datapayload); err != nil {
-				ksError := p.ksHelper.BuildError(fmt.Sprintf("Error processing open shell data message %s", err.Error()))
-				return &ksError
+				return p.ksHelper.BuildError(fmt.Sprintf("Error processing open shell data message %s", err.Error()), kysplContracts.KeysplittingActionError)
 			}
-			log.Infof("ssh/open action complete!")
+			log.Infof("[Keysplitting] ssh/open action complete!")
 		case string(kysplContracts.SshClose):
-			log.Infof("ssh/close action not yet implemented on ssm-agent")
+			log.Infof("[Keysplitting] ssh/close action not yet implemented on ssm-agent")
 		default:
-			log.Errorf("Attempted Keysplitting action not recognized: %v", datapayload.Payload.Action)
+			log.Errorf("[Keysplitting] Attempted Keysplitting action not recognized: %v", datapayload.Payload.Action)
 		}
 
 		// Tells parent Datachannel object to send DATAACK message with specified payload
-		return &kysplContracts.KeysplittingError{
-			Err:     errors.New("DATAACK"),
-			Content: p.ksHelper.BuildDataAck(datapayload),
-		}
+		return p.ksHelper.BuildDataAck(datapayload)
+
 	default:
 		if p.session == nil || !p.session.IsConnectionAvailable() {
 			// This is to handle scenario when cli/console starts sending data but session has not been initialized yet

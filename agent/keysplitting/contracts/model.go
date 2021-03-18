@@ -72,9 +72,10 @@ type DataAckPayloadPayload struct {
 
 // Error Message for sending back keysplitting errors instead of acks
 type ErrorPayloadPayload struct {
-	Message         string `json:"message"`
-	HPointer        string `json:"hPointer"`
-	TargetPublicKey string `json:"targetPublicKey"`
+	Message         string                `json:"message"`
+	Type            KeysplittingErrorType `json:"errorType"`
+	HPointer        string                `json:"hPointer"`
+	TargetPublicKey string                `json:"targetPublicKey"`
 }
 
 type ErrorPayload struct {
@@ -110,8 +111,14 @@ func (r *KeysplittingError) Error() string {
 type KeysplittingErrorType string
 
 const (
-	BZECertIDTokenValidationError KeysplittingErrorType = "BZECertIDTokenValidationError"
-	BZECertInvalidNonce           KeysplittingErrorType = "BZECertInvalidNonce"
-	BZECertUnverifiedEmail        KeysplittingErrorType = "BZECertUnverifiedEmail"
-	BZECertInvalidHash            KeysplittingErrorType = "BZECertInvalidHash"
+	BZECertInvalidIDToken      KeysplittingErrorType = "BZECertInvalidIDToken"
+	BZECertInvalidNonce        KeysplittingErrorType = "BZECertInvalidNonce"
+	BZECertUnrecognized        KeysplittingErrorType = "BZECertInvalidHash"
+	BZECertInvalidProvider     KeysplittingErrorType = "BZECertProviderError"
+	HPointerError              KeysplittingErrorType = "HPointerError"
+	SigningError               KeysplittingErrorType = "SigningError"
+	SignatureVerificationError KeysplittingErrorType = "SignatureVerificationError"
+	TargetIdInvalid            KeysplittingErrorType = "TargetIdInvalid"
+	HashingError               KeysplittingErrorType = "HashingError"
+	KeysplittingActionError    KeysplittingErrorType = "KeysplittingActionError"
 )
