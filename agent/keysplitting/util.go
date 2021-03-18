@@ -299,7 +299,7 @@ func (k *KeysplittingHelper) UpdateHPointer(rawpayload interface{}) error {
 }
 
 func (k *KeysplittingHelper) BuildError(message string, errortype kysplContracts.KeysplittingErrorType) error {
-	k.log.Infof("[Keysplitting] " + message) // log error locally before sending
+	k.log.Errorf("[Keysplitting] " + message) // log error locally before sending
 
 	content := kysplContracts.ErrorPayloadPayload{
 		Message:  message,

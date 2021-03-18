@@ -121,4 +121,5 @@ const (
 	TargetIdInvalid            KeysplittingErrorType = "TargetIdInvalid"
 	HashingError               KeysplittingErrorType = "HashingError"
 	KeysplittingActionError    KeysplittingErrorType = "KeysplittingActionError"
+	InvalidPayload             KeysplittingErrorType = "InvalidPayload"
 )

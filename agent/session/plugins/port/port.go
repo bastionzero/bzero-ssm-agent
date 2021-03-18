@@ -228,7 +228,9 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		var synpayload kysplContracts.SynPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
 			// not a keysplitting error, also we can't possibly have the hpointer so it wouldn't be possible to associate the error with the correct message
-			return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
+			message := fmt.Sprintf("Error occurred while parsing SynPayload json: %v", err)
+			// Is it icky that anyone can send a Syn payload and get back the current state of the hpointer? Am I overreacting? -lucie
+			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
 		}
 		log.Infof("[Keysplitting] Syn Payload Unmarshalled")
 
@@ -267,7 +269,8 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		var datapayload kysplContracts.DataPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
-			return fmt.Errorf("[Keysplitting] Error occurred while parsing DataPayload json: %v", err)
+			message := fmt.Sprintf("[Keysplitting] Error occurred while parsing DataPayload json: %v", err)
+			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
 		}
 		log.Infof("[Keysplitting] Data Payload Unmarshalled...")
 
@@ -309,7 +312,8 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		case string(kysplContracts.SshClose):
 			log.Infof("[Keysplitting] SSH/Close Action Not Yet Implemented on ssm-agent")
 		default:
-			log.Errorf("[Keysplitting] Attempted Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
+			message := fmt.Sprintf("[Keysplitting] Attempted Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
+			return p.ksHelper.BuildError(message, kysplContracts.KeysplittingActionError)
 		}
 
 		// Tells parent Datachannel object to send DATAACK message with specified payload
