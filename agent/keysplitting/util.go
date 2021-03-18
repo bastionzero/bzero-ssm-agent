@@ -16,9 +16,9 @@ import (
 
 	"golang.org/x/crypto/sha3"
 
+	kysplContracts "github.com/aws/amazon-ssm-agent/agent/keysplitting/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
-	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	oidc "github.com/coreos/go-oidc/oidc"
 )
 
@@ -46,7 +46,7 @@ type KeysplittingHelper struct {
 
 	HPointer         string `default:""`
 	ExpectedHPointer string
-	bzeCerts         map[string]mgsContracts.BZECert
+	bzeCerts         map[string]kysplContracts.BZECert
 }
 
 func Init(log log.T) (KeysplittingHelper, error) {
@@ -70,8 +70,8 @@ func Init(log log.T) (KeysplittingHelper, error) {
 		publicKey:    bzeroConfig["PublicKey"],
 		privateKey:   bzeroConfig["PrivateKey"],
 		orgId:        bzeroConfig["OrganizationID"],
-		provider:     bzeroConfig["OrganizationProvider"], // Either Google or Microsoft
-		bzeCerts:     make(map[string]mgsContracts.BZECert),
+		provider:     bzeroConfig["OrganizationProvider"], // Either google or microsoft
+		bzeCerts:     make(map[string]kysplContracts.BZECert),
 		googleIss:    googleUrl,
 		microsoftIss: getMicrosoftIssuerUrl(bzeroConfig["OrganizationID"]),
 	}
@@ -106,9 +106,9 @@ func (k *KeysplittingHelper) GetNonce() string {
 
 func isPayload(a interface{}) bool {
 	switch a.(type) {
-	case mgsContracts.SynPayload:
+	case kysplContracts.SynPayload:
 		return true
-	case mgsContracts.DataPayload:
+	case kysplContracts.DataPayload:
 		return true
 	default:
 		return false
@@ -117,15 +117,15 @@ func isPayload(a interface{}) bool {
 
 func isKeysplittingStruct(a interface{}) bool {
 	switch a.(type) { // switch on a's type
-	case mgsContracts.SynPayloadPayload:
+	case kysplContracts.SynPayloadPayload:
 		return true
-	case mgsContracts.SynAckPayloadPayload:
+	case kysplContracts.SynAckPayloadPayload:
 		return true
-	case mgsContracts.DataPayloadPayload:
+	case kysplContracts.DataPayloadPayload:
 		return true
-	case mgsContracts.DataAckPayloadPayload:
+	case kysplContracts.DataAckPayloadPayload:
 		return true
-	case mgsContracts.BZECert:
+	case kysplContracts.BZECert:
 		return true
 	default:
 		return false
@@ -168,7 +168,7 @@ func HashStruct(payload interface{}) (string, error) {
 }
 
 // Currently just a pass-through but eventually the hub of operations
-func (k *KeysplittingHelper) VerifyBZECert(cert mgsContracts.BZECert) error {
+func (k *KeysplittingHelper) VerifyBZECert(cert kysplContracts.BZECert) error {
 	if err := k.verifyIdToken(cert.InitialIdToken, cert, true, true); err != nil {
 		return fmt.Errorf("Invalid InitialIdToken: %v", err)
 	}
@@ -188,7 +188,7 @@ func (k *KeysplittingHelper) VerifyBZECert(cert mgsContracts.BZECert) error {
 	return nil
 }
 
-func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
+func verifyAuthNonce(cert kysplContracts.BZECert, authNonce string) error {
 	nonce := cert.ClientPublicKey + cert.SignatureOnRand + cert.Rand
 	nonceHash, _ := Hash(nonce)
 
@@ -209,7 +209,7 @@ func verifyAuthNonce(cert mgsContracts.BZECert, authNonce string) error {
 }
 
 // This function verifies id_tokens
-func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert mgsContracts.BZECert, skipExpiry bool, verifyNonce bool) error {
+func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.BZECert, skipExpiry bool, verifyNonce bool) error {
 	ctx := context.TODO() // Gives us non-nil empty context
 	config := &oidc.Config{
 		SkipClientIDCheck: true,
@@ -309,25 +309,25 @@ func (k *KeysplittingHelper) UpdateHPointer(rawpayload interface{}) error {
 	}
 }
 
-func (k *KeysplittingHelper) BuildError(message string) mgsContracts.KeysplittingError {
-	content := mgsContracts.ErrorPayloadPayload{
+func (k *KeysplittingHelper) BuildError(message string) kysplContracts.KeysplittingError {
+	content := kysplContracts.ErrorPayloadPayload{
 		Message:  message,
 		HPointer: k.HPointer,
 	}
-	errorContent := mgsContracts.ErrorPayload{
+	errorContent := kysplContracts.ErrorPayload{
 		Payload:   content,
 		Signature: "targetsignature",
 	}
 
-	return mgsContracts.KeysplittingError{
+	return kysplContracts.KeysplittingError{
 		Err:     errors.New("ERROR"),
 		Content: errorContent,
 	}
 }
 
-func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload mgsContracts.SynPayload) mgsContracts.SynAckPayload {
+func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload kysplContracts.SynPayload) kysplContracts.SynAckPayload {
 	// Build SynAck message payload
-	contentPayload := mgsContracts.SynAckPayloadPayload{
+	contentPayload := kysplContracts.SynAckPayloadPayload{
 		Type:            "SYNACK",
 		Action:          synpayload.Payload.Action,
 		Nonce:           nonce,
@@ -337,7 +337,7 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload mgsContracts.S
 
 	signature, _ := k.SignPayload(contentPayload)
 
-	synAckContent := mgsContracts.SynAckPayload{
+	synAckContent := kysplContracts.SynAckPayload{
 		Payload:   contentPayload,
 		Signature: signature,
 	}
@@ -348,9 +348,9 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload mgsContracts.S
 	return synAckContent
 }
 
-func (k *KeysplittingHelper) BuildDataAck(datapayload mgsContracts.DataPayload) mgsContracts.DataAckPayload {
+func (k *KeysplittingHelper) BuildDataAck(datapayload kysplContracts.DataPayload) kysplContracts.DataAckPayload {
 	// Build DataAck message payload
-	contentPayload := mgsContracts.DataAckPayloadPayload{
+	contentPayload := kysplContracts.DataAckPayloadPayload{
 		Type:            "DATAACK",
 		Action:          datapayload.Payload.Action,
 		HPointer:        k.HPointer,
@@ -360,7 +360,7 @@ func (k *KeysplittingHelper) BuildDataAck(datapayload mgsContracts.DataPayload) 
 
 	signature, _ := k.SignPayload(contentPayload)
 
-	dataAckContent := mgsContracts.DataAckPayload{
+	dataAckContent := kysplContracts.DataAckPayload{
 		Payload:   contentPayload,
 		Signature: signature,
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler"
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
 	"github.com/aws/amazon-ssm-agent/agent/keysplitting"
+	kysplContracts "github.com/aws/amazon-ssm-agent/agent/keysplitting/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	mgsConfig "github.com/aws/amazon-ssm-agent/agent/session/config"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
@@ -54,7 +55,7 @@ type PortPlugin struct {
 	cancelled          chan struct{}
 	session            IPortSession
 	ksHelper           keysplitting.KeysplittingHelper
-	sshOpenData        *mgsContracts.SshOpenActionPayload
+	sshOpenData        *kysplContracts.SshOpenActionPayload
 	authorizedKeyEntry string
 }
 
@@ -224,7 +225,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 	case mgsContracts.Syn:
 		log.Infof("Syn payload received: %v", string(streamDataMessage.Payload))
 
-		var synpayload mgsContracts.SynPayload
+		var synpayload kysplContracts.SynPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
 			// not a keysplitting error, also we can't possibly have the hpointer so it wouldn't be possible to associate the error with the correct message
 			return fmt.Errorf("Error occurred while parsing SynPayload json: %v", err)
@@ -259,14 +260,14 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		}
 
 		// Tells parent Datachannel object to send SYNACK message with specified payload
-		return &mgsContracts.KeysplittingError{
+		return &kysplContracts.KeysplittingError{
 			Err:     errors.New("SYNACK"),
 			Content: p.ksHelper.BuildSynAck(nonce, synpayload),
 		}
 	case mgsContracts.Data:
 		log.Infof("Data payload received: %v", string(streamDataMessage.Payload))
 
-		var datapayload mgsContracts.DataPayload
+		var datapayload kysplContracts.DataPayload
 		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
 			return fmt.Errorf("Error occurred while parsing DataPayload json: %v", err)
 		}
@@ -304,20 +305,20 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 
 		// Do something with action
 		switch datapayload.Payload.Action {
-		case string(mgsContracts.SshOpen):
+		case string(kysplContracts.SshOpen):
 			if err := p.handleOpenShellDataAction(log, datapayload); err != nil {
 				ksError := p.ksHelper.BuildError(fmt.Sprintf("Error processing open shell data message %s", err.Error()))
 				return &ksError
 			}
 			log.Infof("ssh/open action complete!")
-		case string(mgsContracts.SshClose):
+		case string(kysplContracts.SshClose):
 			log.Infof("ssh/close action not yet implemented on ssm-agent")
 		default:
 			log.Errorf("Attempted Keysplitting action not recognized: %v", datapayload.Payload.Action)
 		}
 
 		// Tells parent Datachannel object to send DATAACK message with specified payload
-		return &mgsContracts.KeysplittingError{
+		return &kysplContracts.KeysplittingError{
 			Err:     errors.New("DATAACK"),
 			Content: p.ksHelper.BuildDataAck(datapayload),
 		}
@@ -333,9 +334,9 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 	}
 }
 
-func (p *PortPlugin) handleOpenShellDataAction(log log.T, datapayload mgsContracts.DataPayload) error {
+func (p *PortPlugin) handleOpenShellDataAction(log log.T, datapayload kysplContracts.DataPayload) error {
 	// Deserialize the inner payload in the data message into SshOpenActionPayload
-	var sshOpenActionPayload mgsContracts.SshOpenActionPayload
+	var sshOpenActionPayload kysplContracts.SshOpenActionPayload
 	if err := json.Unmarshal([]byte(datapayload.Payload.Payload), &sshOpenActionPayload); err != nil {
 		return fmt.Errorf("Error occurred while parsing ssh/open data payload json: %v", err)
 	}
