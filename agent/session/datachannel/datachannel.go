@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/aws/amazon-ssm-agent/agent/context"
+	"github.com/aws/amazon-ssm-agent/agent/keysplitting"
+	kysplContracts "github.com/aws/amazon-ssm-agent/agent/keysplitting/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/rip"
 	"github.com/aws/amazon-ssm-agent/agent/session/communicator"
@@ -507,11 +509,11 @@ func (dataChannel *DataChannel) SendKeysplittingMessage(log log.T, payload inter
 	log.Debugf("Sending Keysplitting message: ", payloadBytes)
 
 	switch v := payload.(type) {
-	case mgsContracts.SynAckPayload:
+	case kysplContracts.SynAckPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 12)
-	case mgsContracts.DataAckPayload:
+	case kysplContracts.DataAckPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 14)
-	case mgsContracts.ErrorPayload:
+	case kysplContracts.ErrorPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 15)
 	default:
 		return fmt.Errorf("Failed to hash Keysplitting message of unhandled type %v", v) // Should this also be a keysplitting error message?
@@ -878,17 +880,14 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 		}
 
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
-			if err, ok := err.(*mgsContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
-				dataChannel.SendKeysplittingMessage(log, err.Content)
-				// switch err.Error() {
-				// case "SYNACK":
-				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
-				// case "DATAACK":
-				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
-				// case "ERROR":
-				// 	dataChannel.SendKeysplittingMessage(log, err.Content)
-				// }
-			} else { // If it's not of type KeysplittingError, then return it because it's just a normal error
+			payloadType := mgsContracts.PayloadType(streamDataMessage.PayloadType)
+			if payloadType == mgsContracts.Syn || payloadType == mgsContracts.Data {
+				if err, ok := err.(*kysplContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
+					dataChannel.SendKeysplittingMessage(log, err.Content)
+				} else { // If it's not of type KeysplittingError, it's wrong so build one and send it
+					dataChannel.SendKeysplittingMessage(log, keysplitting.BuildUnknownErrorPayload(err))
+				}
+			} else {
 				return err
 			}
 		}
