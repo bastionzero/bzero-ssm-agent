@@ -122,4 +122,5 @@ const (
 	HashingError               KeysplittingErrorType = "HashingError"
 	KeysplittingActionError    KeysplittingErrorType = "KeysplittingActionError"
 	InvalidPayload             KeysplittingErrorType = "InvalidPayload"
+	Unknown                    KeysplittingErrorType = "Unknown"
 )

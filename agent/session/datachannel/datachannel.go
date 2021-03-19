@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/aws/amazon-ssm-agent/agent/context"
+	"github.com/aws/amazon-ssm-agent/agent/keysplitting"
 	kysplContracts "github.com/aws/amazon-ssm-agent/agent/keysplitting/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/rip"
@@ -879,9 +880,14 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 		}
 
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
-			if err, ok := err.(*kysplContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
-				dataChannel.SendKeysplittingMessage(log, err.Content)
-			} else { // If it's not of type KeysplittingError, then return it because it's just a normal error
+			payloadType := mgsContracts.PayloadType(streamDataMessage.PayloadType)
+			if payloadType == mgsContracts.Syn || payloadType == mgsContracts.Data {
+				if err, ok := err.(*kysplContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
+					dataChannel.SendKeysplittingMessage(log, err.Content)
+				} else { // If it's not of type KeysplittingError, it's wrong so build one and send it
+					dataChannel.SendKeysplittingMessage(log, keysplitting.BuildUnknownErrorPayload(err))
+				}
+			} else {
 				return err
 			}
 		}

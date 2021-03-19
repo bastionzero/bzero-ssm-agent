@@ -229,7 +229,7 @@ func (p *PortPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsC
 		if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
 			// not a keysplitting error, also we can't possibly have the hpointer so it wouldn't be possible to associate the error with the correct message
 			message := fmt.Sprintf("Error occurred while parsing SynPayload json: %v", err)
-			// Is it icky that anyone can send a Syn payload and get back the current state of the hpointer? Am I overreacting? -lucie
+			// Is it icky that anyone can send a Syn or Data payload and get back the current state of the hpointer? Am I overreacting? -lucie
 			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
 		}
 		log.Infof("[Keysplitting] Syn Payload Unmarshalled")

@@ -298,6 +298,26 @@ func (k *KeysplittingHelper) UpdateHPointer(rawpayload interface{}) error {
 	}
 }
 
+// This function is only to be called from the DataChannel as a catch-all.  It returns an ErrorPayload to
+// be sent in case there is a missed KeysplittingError in the keysplitting logic.  It tries to sign the Payload
+// but if it can't, that's okay it did its best.
+func BuildUnknownErrorPayload(err error) kysplContracts.ErrorPayload {
+	content := kysplContracts.ErrorPayloadPayload{
+		Message:  err.Error(),
+		Type:     kysplContracts.Unknown,
+		HPointer: "",
+	}
+
+	signature := ""
+	if ksHelper, err := Init(nil); err != nil {
+		signature, _ = ksHelper.SignPayload(content) // On error, signature returned as ""
+	}
+	return kysplContracts.ErrorPayload{
+		Payload:   content,
+		Signature: signature,
+	}
+}
+
 func (k *KeysplittingHelper) BuildError(message string, errortype kysplContracts.KeysplittingErrorType) error {
 	k.log.Errorf("[Keysplitting] " + message) // log error locally before sending
 
