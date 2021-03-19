@@ -502,11 +502,11 @@ func (dataChannel *DataChannel) ProcessAcknowledgedMessage(log log.T, acknowledg
 func (dataChannel *DataChannel) SendKeysplittingMessage(log log.T, payload interface{}) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("Could not serialize Ack message: %v, err: %s", payload, err)
+		return fmt.Errorf("Could not serialize %T message: %v, err: %s", payload, payload, err)
 	}
 
-	log.Tracef("Send Ack or Error message: %d", payloadBytes)
-	log.Debugf("Sending Keysplitting message: ", payloadBytes)
+	log.Tracef("Send Keysplitting Response Message: %d", payloadBytes)
+	log.Infof("[Keysplitting] Sending %T Message: %v", payload, payloadBytes)
 
 	switch v := payload.(type) {
 	case kysplContracts.SynAckPayload:

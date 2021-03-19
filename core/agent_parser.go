@@ -16,6 +16,7 @@
 package main
 
 import (
+	ed "crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -23,11 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-
-	"crypto/ecdsa"
-	ed "crypto/ed25519"
-	"crypto/x509"
-	"encoding/pem"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
@@ -142,17 +138,6 @@ func bzeroInit(log logger.T) {
 	}
 
 	log.Info("Successfully created and stored BZero Config!")
-}
-
-func encode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) (string, string) {
-	// ref: https://stackoverflow.com/questions/21322182/how-to-store-ecdsa-private-key-in-go
-	x509Encoded, _ := x509.MarshalECPrivateKey(privateKey)
-	pemEncoded := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded})
-
-	x509EncodedPub, _ := x509.MarshalPKIXPublicKey(publicKey)
-	pemEncodedPub := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub})
-
-	return string(pemEncoded), string(pemEncodedPub)
 }
 
 // handles registration and fingerprint flags
