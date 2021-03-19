@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
+	keysplitting "github.com/aws/amazon-ssm-agent/agent/keysplitting"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/fingerprint"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/registration"
@@ -80,7 +81,7 @@ func handleBZeroInfo() {
 func printBZeroPubKey() {
 	bzeroConfig := map[string]string{}
 
-	config, err := vault.Retrieve(BZeroConfig)
+	config, err := vault.Retrieve(keysplitting.BZeroConfig)
 	if err != nil {
 		fmt.Printf("Error retriving BZero config: %v", err)
 		os.Exit(1)
@@ -132,7 +133,7 @@ func bzeroInit(log logger.T) {
 		os.Exit(1)
 	}
 
-	if err = vault.Store(BZeroConfig, data); err != nil {
+	if err = vault.Store(keysplitting.BZeroConfig, data); err != nil {
 		log.Errorf("BZero Storing of Config Failed: %v", err)
 		os.Exit(1)
 	}
