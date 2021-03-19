@@ -113,7 +113,7 @@ type KeysplittingErrorType string
 const (
 	BZECertInvalidIDToken      KeysplittingErrorType = "BZECertInvalidIDToken"
 	BZECertInvalidNonce        KeysplittingErrorType = "BZECertInvalidNonce"
-	BZECertUnrecognized        KeysplittingErrorType = "BZECertInvalidHash"
+	BZECertUnrecognized        KeysplittingErrorType = "BZECertUnrecognized"
 	BZECertInvalidProvider     KeysplittingErrorType = "BZECertProviderError"
 	HPointerError              KeysplittingErrorType = "HPointerError"
 	SigningError               KeysplittingErrorType = "SigningError"
