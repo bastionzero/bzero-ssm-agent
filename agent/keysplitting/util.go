@@ -28,7 +28,7 @@ const (
 	// this is the tenant id Microsoft uses when the account is a personal account (not a work/school account)
 	// https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens#payload-claims)
 	microsoftPersonalAccountTenantId = "9188040d-6c67-4c5b-b112-36a304b66dad"
-	BZeroConfig                      = "BZeroConfig"   // TODO: change ref in core to this, change agent_parser
+	BZeroConfig                      = "BZeroConfig"
 	week                             = time.Hour * 168 // 168 hours = 7 days
 )
 

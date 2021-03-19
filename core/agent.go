@@ -43,10 +43,6 @@ const (
 	bzeroInfoFlag           = "bzeroInfo"
 )
 
-const (
-	BZeroConfig = "BZeroConfig"
-)
-
 var (
 	activationCode, activationID, region, orgID, orgProvider    string
 	register, clear, force, fpFlag, agentVersionFlag, bzeroInfo bool
