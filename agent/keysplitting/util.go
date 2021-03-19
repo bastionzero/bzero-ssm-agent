@@ -308,13 +308,9 @@ func BuildUnknownErrorPayload(err error) kysplContracts.ErrorPayload {
 		HPointer: "",
 	}
 
-	signature := ""
-	if ksHelper, err := Init(nil); err != nil {
-		signature, _ = ksHelper.SignPayload(content) // On error, signature returned as ""
-	}
 	return kysplContracts.ErrorPayload{
 		Payload:   content,
-		Signature: signature,
+		Signature: "",
 	}
 }
 
@@ -327,14 +323,9 @@ func (k *KeysplittingHelper) BuildError(message string, errortype kysplContracts
 		HPointer: k.HPointer,
 	}
 
-	signature, err := k.SignPayload(content)
-	if err != nil {
-		return err
-	}
-
 	errorContent := kysplContracts.ErrorPayload{
 		Payload:   content,
-		Signature: signature,
+		Signature: "",
 	}
 
 	return &kysplContracts.KeysplittingError{
