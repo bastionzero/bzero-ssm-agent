@@ -104,7 +104,7 @@ func printBZeroInfo(info string) {
 
 func bzeroInit(log logger.T) {
 	// BZero Init function to:
-	// 	* Generate Pub/Priv keypair
+	//  * Generate Pub/Priv keypair
 	//  * Store keys along with passed orgID
 
 	// Generate public private key pair along ed25519 curve
