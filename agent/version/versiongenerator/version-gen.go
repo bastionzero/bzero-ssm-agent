@@ -60,7 +60,7 @@ func main() {
 
 	fmt.Printf("Agent Version: %v", versionStr)
 	if err := ioutil.WriteFile(filepath.Join("VERSION"), []byte(versionStr), appconfig.ReadWriteAccess); err != nil {
-		fmt.Printf("Error writing to VERSION file. %v", err)
+		log.Fatalf("Error writing to VERSION file. %v", err)
 	}
 
 	// default values
@@ -74,24 +74,24 @@ func main() {
 	t := template.Must(template.New("version").Parse(string(licenseStr) + versiongoTemplate))
 	err = t.Execute(&newVersion, info)
 	if err != nil {
-		fmt.Printf("Error applying template: %v", err)
+		log.Fatalf("Error applying template: %v", err)
 	}
 
 	oldContent, err := ioutil.ReadFile(versionFilePath)
 	if err != nil {
-		fmt.Printf("Error reading old version file: %v", err)
+		log.Fatalf("Error reading old version file: %v", err)
 	}
 
 	if newVersion.String() != string(oldContent) {
 		outFile, err := os.Create(versionFilePath)
 		if err != nil {
-			fmt.Printf("Unable to create output version file: %v", err)
+			log.Fatalf("Unable to create output version file: %v", err)
 		}
 		defer outFile.Close()
 
 		err = t.Execute(outFile, info)
 		if err != nil {
-			fmt.Printf("Error applying template: %v", err)
+			log.Fatalf("Error applying template: %v", err)
 		}
 	}
 
