@@ -217,6 +217,9 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 		issUrl = k.googleIss
 	case "microsoft":
 		issUrl = k.microsoftIss
+	case "":
+		// If there is no provider, skip keysplitting verification
+		return nil
 	default:
 		message := fmt.Sprintf("Unhandled Provider type, %v", k.provider)
 		return k.BuildError(message, kysplContracts.BZECertInvalidProvider)
