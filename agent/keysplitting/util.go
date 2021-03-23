@@ -213,6 +213,9 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 
 	issUrl := ""
 	switch k.provider {
+	case "None":
+		// If there is no provider, skip id token verification
+		return nil
 	case "google":
 		issUrl = k.googleIss
 	case "microsoft":
