@@ -87,8 +87,10 @@ type ErrorPayload struct {
 type KeysplittingAction string
 
 const (
-	SshOpen  KeysplittingAction = "ssh/open"
-	SshClose KeysplittingAction = "ssh/close"
+	SshOpen    KeysplittingAction = "ssh/open"
+	SshClose   KeysplittingAction = "ssh/close"
+	ShellOpen  KeysplittingAction = "shell/open"
+	ShellClose KeysplittingAction = "shell/close"
 )
 
 type SshOpenActionPayload struct {
@@ -123,4 +125,5 @@ const (
 	KeysplittingActionError    KeysplittingErrorType = "KeysplittingActionError"
 	InvalidPayload             KeysplittingErrorType = "InvalidPayload"
 	Unknown                    KeysplittingErrorType = "Unknown"
+	ChannelClosed              KeysplittingErrorType = "ChannelClosed"
 )
