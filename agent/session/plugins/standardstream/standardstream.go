@@ -90,6 +90,7 @@ func (p *StandardStreamPlugin) Execute(
 
 // InputStreamMessageHandler passes payload byte stream to shell stdin
 func (p *StandardStreamPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error {
+	log.Infof("[Keysplitting] Message received by StandardStream with payload %v", streamDataMessage.PayloadType)
 	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
 
 	case mgsContracts.Syn:
