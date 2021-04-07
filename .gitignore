@@ -33,3 +33,4 @@ vendor/src/github.com/aws/amazon-ssm-agent
 ec2-build-automation.sh
 bzero-ssm-agent
 RELEASENOTES.md
+RELEASENOTES.md
