@@ -27,10 +27,13 @@ phases:
     commands:
       - echo Post build started...
       - echo Copying all files to $LatestVersion folder...
-      - mkdir -p $ReleaseDir/$LatestVersion
+      - mkdir -p $ReleaseDir/$LatestVersion/386
+      - mkdir -p $ReleaseDir/$LatestVersion/arm64
       - cp -a bin/VERSION $ReleaseDir/$LatestVersion
-      - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/$LatestVersion
-      - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/$LatestVersion
+      - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/$LatestVersion/386
+      - cp -a bin/debian_arm64/bzero-ssm-agent.deb $ReleaseDir/$LatestVersion/arm64
+      - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/$LatestVersion/386
+      - cp -a bin/linux_arm64/bzero-ssm-agent.rpm $ReleaseDir/$LatestVersion/arm64
       - echo Copying all files to latest folder...
       - cp -a $ReleaseDir/$LatestVersion $ReleaseDir/latest
       - aws cloudfront create-invalidation --distribution-id=E3A9PBCN2XC2Y2 --paths '/release/latest/*'
