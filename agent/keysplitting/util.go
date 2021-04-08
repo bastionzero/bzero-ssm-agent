@@ -76,6 +76,8 @@ func Init(log log.T) (KeysplittingHelper, error) {
 		microsoftIss: getMicrosoftIssuerUrl(bzeroConfig["OrganizationID"]),
 	}
 
+	log.Infof("[Keysplitting] Keysplitting Initiated.")
+
 	return helper, nil
 }
 

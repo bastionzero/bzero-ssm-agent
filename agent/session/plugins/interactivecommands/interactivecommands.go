@@ -241,11 +241,6 @@ func (p *InteractiveCommandsPlugin) forwardMessage(log log.T, streamDataMessage 
 	if p.channelOpen {
 		agentMessage := mgsContracts.AgentMessage{
 			MessageType: streamDataMessage.MessageType,
-			// SchemaVersion:  streamDataMessage.SchemaVersion,
-			// CreatedDate:    streamDataMessage.CreatedDate,
-			// SequenceNumber: streamDataMessage.SequenceNumber,
-			// Flags:          streamDataMessage.Flags,
-			// MessageId:      streamDataMessage.MessageId,
 			Payload:     []byte(payload.Payload), // a string for Output or a json {cols: x, rows: y} for Size
 			PayloadType: uint32(payloadtype),     // either Output or Size
 		}
