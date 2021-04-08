@@ -406,7 +406,7 @@ func (k *KeysplittingHelper) CheckBZECert(certHash string) error {
 func (k *KeysplittingHelper) VerifyHPointer(newPointer string) error {
 	if k.ExpectedHPointer != newPointer {
 		message := fmt.Sprintf("Expected Hpointer: %v did not equal received Hpointer %v", k.ExpectedHPointer, newPointer)
-		return k.BuildError(message, kysplContracts.HPointerError)
+		return k.BuildError(message, kysplContracts.OutdatedHPointer)
 	} else {
 		return nil
 	}

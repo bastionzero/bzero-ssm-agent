@@ -91,6 +91,7 @@ const (
 	SshClose   KeysplittingAction = "ssh/close"
 	ShellOpen  KeysplittingAction = "shell/open"
 	ShellClose KeysplittingAction = "shell/close"
+	ShellInput KeysplittingAction = "shell/input"
 )
 
 type SshOpenActionPayload struct {
@@ -126,4 +127,5 @@ const (
 	InvalidPayload             KeysplittingErrorType = "InvalidPayload"
 	Unknown                    KeysplittingErrorType = "Unknown"
 	ChannelClosed              KeysplittingErrorType = "ChannelClosed"
+	OutdatedHPointer           KeysplittingErrorType = "OutdatedHPointer"
 )

@@ -185,15 +185,15 @@ func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamD
 		}
 
 		// Verify client signature
-		// if err := p.ksHelper.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); err != nil {
-		// 	return err
-		// }
+		if err := p.ksHelper.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); err != nil {
+			return err
+		}
 		log.Infof("[Keysplitting] Client Signature on Data Message Verified")
 
 		// Validate hash pointer
-		// if err := p.ksHelper.VerifyHPointer(datapayload.Payload.HPointer); err != nil {
-		// 	return err
-		// }
+		if err := p.ksHelper.VerifyHPointer(datapayload.Payload.HPointer); err != nil {
+			return err
+		}
 
 		// Validate that TargetId == Hash(pubkey)
 		if err := p.ksHelper.VerifyTargetId(datapayload.Payload.TargetId); err != nil {
@@ -209,6 +209,15 @@ func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamD
 		case string(kysplContracts.ShellClose):
 			p.channelOpen = false
 			log.Infof("[Keysplitting] shell/close Action Completed")
+		case string(kysplContracts.ShellInput):
+			if p.channelOpen {
+				streamDataMessage.Payload = datapayload.Payload.Payload
+				streamDataMessage.PayloadLength = len(streamDataMessage.Payload)
+				return p.shell.InputStreamMessageHandler(log, streamDataMessage)
+			} else {
+				message := fmt.Sprintf("[Keysplitting] Keysplitting Handshake is required to communicate with shell: %v", datapayload.Payload.Action)
+				return p.ksHelper.BuildError(message, kysplContracts.ChannelClosed)
+			}
 		default:
 			message := fmt.Sprintf("[Keysplitting] Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
 			return p.ksHelper.BuildError(message, kysplContracts.KeysplittingActionError)
@@ -218,13 +227,7 @@ func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamD
 		log.Infof("[Keysplitting] Sending DataAck Message...")
 		return p.ksHelper.BuildDataAck(datapayload)
 
-	default:
-		// if p.channelOpen {
-		// 	return p.shell.InputStreamMessageHandler(log, streamDataMessage)
-		// } else {
-		// 	message := fmt.Sprintf("[Keysplitting] Keysplitting Handshake is required to communicate with shell: %v", datapayload.Payload.Action)
-		// 	return p.ksHelper.BuildError(message, kysplContracts.ChannelClosed)
-		// }
+	default: // fail safe
 		return p.shell.InputStreamMessageHandler(log, streamDataMessage)
 	}
 }
