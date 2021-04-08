@@ -119,7 +119,7 @@ func (p *StandardStreamPlugin) InputStreamMessageHandler(log log.T, streamDataMe
 		}
 
 		// Client Signature verification
-		bzehash, _ := keysplitting.HashStruct(synpayload.Payload.BZECert)
+		bzehash, _ := p.ksHelper.HashStruct(synpayload.Payload.BZECert)
 		if err := p.ksHelper.VerifySignature(synpayload.Payload, synpayload.Signature, bzehash); err != nil {
 			return err
 		}

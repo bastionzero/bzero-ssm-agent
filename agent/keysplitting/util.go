@@ -127,7 +127,7 @@ func isKeysplittingStruct(a interface{}) bool {
 
 // Function will accept any type of variable but will only hash strings or byte(s)
 // returns a base64 encoded string because otherwise its unprintable nonsense
-func Hash(a interface{}) (string, error) {
+func (k *KeysplittingHelper) Hash(a interface{}) (string, error) {
 	switch a.(type) {
 	case string:
 		aString, _ := a.(string) // extra type assertion required to hash
@@ -144,7 +144,7 @@ func Hash(a interface{}) (string, error) {
 
 // Slightly genericized but only accepts Keysplitting structs so any payloads or bzecert
 // and returns the base64-encoded string of the hash the raw json string value
-func HashStruct(payload interface{}) (string, error) {
+func (k *KeysplittingHelper) HashStruct(payload interface{}) (string, error) {
 	var payloadMap map[string]interface{}
 
 	if isKeysplittingStruct(payload) {
@@ -153,7 +153,8 @@ func HashStruct(payload interface{}) (string, error) {
 		} else {
 			json.Unmarshal(rawpayload, &payloadMap)
 			lexicon, _ := json.Marshal(payloadMap) // Make the marshalled json, alphabetical to match client
-			return Hash(lexicon)
+			k.log.Infof("hashing: %s", lexicon)
+			return k.Hash(lexicon)
 		}
 	} else {
 		return "", fmt.Errorf("Tried to hash payload of unhandled type %T", payload)
@@ -170,7 +171,7 @@ func (k *KeysplittingHelper) VerifyBZECert(cert kysplContracts.BZECert) error {
 
 	// Add client's BZECert to map of BZECerts
 	// Because we have already marshalled the payload we know that the BZECert is well formed
-	bzehash, _ := HashStruct(cert)
+	bzehash, _ := k.HashStruct(cert)
 	k.bzeCerts[bzehash] = cert
 	k.log.Infof("[Keysplitting] BZECert Validated")
 
@@ -185,7 +186,7 @@ func (k *KeysplittingHelper) VerifyBZECert(cert kysplContracts.BZECert) error {
 //  part of the ID Token).  Returns nil if nonce is verified, else returns an error of type KeysplittingError
 func (k *KeysplittingHelper) verifyAuthNonce(cert kysplContracts.BZECert, authNonce string) error {
 	nonce := cert.ClientPublicKey + cert.SignatureOnRand + cert.Rand
-	nonceHash, _ := Hash(nonce)
+	nonceHash, _ := k.Hash(nonce)
 
 	// check nonce is equal to what is expected
 	if authNonce != nonceHash {
@@ -196,7 +197,7 @@ func (k *KeysplittingHelper) verifyAuthNonce(cert kysplContracts.BZECert, authNo
 	if err != nil {
 		return k.BuildError("Nonce is not base64 encoded", kysplContracts.BZECertInvalidNonce)
 	}
-	randHash, _ := Hash(decodedRand)
+	randHash, _ := k.Hash(decodedRand)
 
 	if !k.verifySignHelper(cert.ClientPublicKey, randHash, cert.SignatureOnRand) {
 		return k.BuildError("Invalid signature on rand in BZECert Nonce", kysplContracts.BZECertInvalidNonce)
@@ -291,7 +292,7 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 
 func (k *KeysplittingHelper) UpdateHPointer(rawpayload interface{}) error {
 	if isKeysplittingStruct(rawpayload) {
-		hash, _ := HashStruct(rawpayload)
+		hash, _ := k.HashStruct(rawpayload)
 		k.HPointer = hash
 		return nil
 	} else {
@@ -359,7 +360,7 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload kysplContracts
 	}
 
 	// Update expectedHPointer aka the hpointer in the next received message to be H(SYNACK)
-	k.ExpectedHPointer, _ = HashStruct(contentPayload)
+	k.ExpectedHPointer, _ = k.HashStruct(contentPayload)
 
 	return &kysplContracts.KeysplittingError{
 		Err:     errors.New("SYNACK"),
@@ -388,7 +389,7 @@ func (k *KeysplittingHelper) BuildDataAck(datapayload kysplContracts.DataPayload
 	}
 
 	// Update expectedHPointer aka the hpointer in the next received message to be H(DATAACK)
-	k.ExpectedHPointer, _ = HashStruct(contentPayload)
+	k.ExpectedHPointer, _ = k.HashStruct(contentPayload)
 
 	return &kysplContracts.KeysplittingError{
 		Err:     errors.New("DATAACK"),
@@ -417,7 +418,7 @@ func (k *KeysplittingHelper) VerifyHPointer(newPointer string) error {
 func (k *KeysplittingHelper) VerifyTargetId(targetid string) error {
 	pubKeyBits, _ := base64.StdEncoding.DecodeString(k.publicKey)
 
-	if pubkeyHash, _ := Hash(pubKeyBits); pubkeyHash != targetid {
+	if pubkeyHash, _ := k.Hash(pubKeyBits); pubkeyHash != targetid {
 		message := fmt.Sprintf("Recieved Target Id, %v, did not match this target's id, %v", targetid, pubkeyHash)
 		return k.BuildError(message, kysplContracts.TargetIdInvalid)
 	} else {
@@ -428,7 +429,7 @@ func (k *KeysplittingHelper) VerifyTargetId(targetid string) error {
 func (k *KeysplittingHelper) VerifySignature(payload interface{}, sig string, bzehash string) error {
 	publickey := k.bzeCerts[bzehash].ClientPublicKey
 
-	hash, err := HashStruct(payload)
+	hash, err := k.HashStruct(payload)
 	if err != nil {
 		message := fmt.Sprintf("Error hashing payload for signature verification: %v", err)
 		return k.BuildError(message, kysplContracts.HashingError)
@@ -450,7 +451,7 @@ func (k *KeysplittingHelper) SignPayload(payload interface{}) (string, error) {
 	}
 	privateKey := ed.PrivateKey(keyBytes)
 
-	hash, err := HashStruct(payload)
+	hash, err := k.HashStruct(payload)
 	if err != nil {
 		message := fmt.Sprintf("Error hashing payload to be signed: %v", err)
 		return "", k.BuildError(message, kysplContracts.HashingError)
