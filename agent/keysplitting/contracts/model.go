@@ -87,11 +87,12 @@ type ErrorPayload struct {
 type KeysplittingAction string
 
 const (
-	SshOpen    KeysplittingAction = "ssh/open"
-	SshClose   KeysplittingAction = "ssh/close"
-	ShellOpen  KeysplittingAction = "shell/open"
-	ShellClose KeysplittingAction = "shell/close"
-	ShellInput KeysplittingAction = "shell/input"
+	SshOpen     KeysplittingAction = "ssh/open"
+	SshClose    KeysplittingAction = "ssh/close"
+	ShellOpen   KeysplittingAction = "shell/open"
+	ShellClose  KeysplittingAction = "shell/close"
+	ShellInput  KeysplittingAction = "shell/input"
+	ShellResize KeysplittingAction = "shell/resize"
 )
 
 type SshOpenActionPayload struct {
