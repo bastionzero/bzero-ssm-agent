@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	ed "crypto/ed25519"
@@ -154,7 +155,8 @@ func (k *KeysplittingHelper) HashStruct(payload interface{}) (string, error) {
 			json.Unmarshal(rawpayload, &payloadMap)
 			lexicon, _ := json.Marshal(payloadMap) // Make the marshalled json, alphabetical to match client
 			k.log.Infof("hashing: %s", lexicon)
-			return k.Hash(lexicon)
+			safeLexicon := strings.Replace(string(lexicon), "\\u000c", "\\f", -1)
+			return k.Hash(safeLexicon)
 		}
 	} else {
 		return "", fmt.Errorf("Tried to hash payload of unhandled type %T", payload)
