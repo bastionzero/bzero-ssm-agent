@@ -4,6 +4,7 @@
 package keysplitting
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -219,18 +220,26 @@ func (k *KeysplittingHelper) Hash(a interface{}) (string, error) {
 	}
 }
 
+func safeMarshal(t interface{}) (error, []byte) {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(t)
+	return err, buffer.Bytes()
+}
+
 // Slightly genericized but only accepts Keysplitting structs so any payloads or bzecert
 // and returns the base64-encoded string of the hash the raw json string value
 func (k *KeysplittingHelper) HashStruct(payload interface{}) (string, error) {
 	var payloadMap map[string]interface{}
 
 	if isKeysplittingStruct(payload) {
-		if rawpayload, err := json.Marshal(payload); err != nil {
+		if err, rawpayload := safeMarshal(payload); err != nil {
 			return "", fmt.Errorf("Error occurred while marshalling keysplitting payload: %v", err)
 		} else {
 			json.Unmarshal(rawpayload, &payloadMap)
-			lexicon, _ := json.Marshal(payloadMap) // Make the marshalled json, alphabetical to match client
-			k.log.Infof("hashing: %s", lexicon)
+			_, lexicon := safeMarshal(payloadMap) // Make the marshalled json, alphabetical to match client
+			k.log.Infof("[Keysplitting] hashing: %s", lexicon)
 
 			// This is because javascript translates CTRL + L as \f and golang translates it as \u000c.
 			// Gotta hash the same value to get matching signatures.
