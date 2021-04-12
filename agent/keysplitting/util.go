@@ -358,8 +358,10 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	}
 
 	// Check if Nonce in ID token is formatted correctly
-	if err = k.verifyAuthNonce(cert, claims.Nonce); err != nil && verifyNonce {
-		return err
+	if verifyNonce {
+		if err = k.verifyAuthNonce(cert, claims.Nonce); err != nil {
+			return err
+		}
 	}
 
 	// Only validate org claim if there is an orgId associated with this agent.
