@@ -225,7 +225,9 @@ func safeMarshal(t interface{}) (error, []byte) {
 	encoder := json.NewEncoder(buffer)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(t)
-	return err, buffer.Bytes()
+	// Encode adds a newline character to the end that we dont want
+	// See https://golang.org/pkg/encoding/json/#Encoder.Encode
+	return err, buffer.Bytes()[:buffer.Len()-1]
 }
 
 // Slightly genericized but only accepts Keysplitting structs so any payloads or bzecert
