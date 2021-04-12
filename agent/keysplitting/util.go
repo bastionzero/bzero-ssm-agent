@@ -95,6 +95,82 @@ func getMicrosoftIssuerUrl(orgId string) string {
 	return microsoftUrl + "/" + tenantId + "/v2.0"
 }
 
+func (k *KeysplittingHelper) ProcessSyn(payload []byte) error {
+	var synpayload kysplContracts.SynPayload
+
+	if err := json.Unmarshal(payload, &synpayload); err != nil {
+		// not a keysplitting error, also we can't possibly have the hpointer so it wouldn't be possible to associate the error with the correct message
+		message := fmt.Sprintf("Error occurred while parsing SynPayload json: %v", err)
+		// Is it icky that anyone can send a Syn or Data payload and get back the current state of the hpointer? Am I overreacting? -lucie
+		return k.BuildError(message, kysplContracts.InvalidPayload)
+	}
+	k.log.Infof("[Keysplitting] Syn Payload Unmarshalled")
+
+	// Get nonce either rand or hpointer (if there is one)
+	nonce := k.GetNonce()
+
+	// Update hpointer so we have it for the error messages
+	if err := k.UpdateHPointer(synpayload.Payload); err != nil {
+		return err
+	}
+
+	// pretty legit BZECert verification
+	if err := k.VerifyBZECert(synpayload.Payload.BZECert); err != nil {
+		return err
+	}
+	k.log.Infof("[Keysplitting] BZE Certificate Verified")
+
+	// Client Signature verification
+	bzehash, _ := k.HashStruct(synpayload.Payload.BZECert)
+	if err := k.VerifySignature(synpayload.Payload, synpayload.Signature, bzehash); err != nil {
+		return err
+	}
+	k.log.Infof("[Keysplitting] Client Signature on Syn Message Verified")
+
+	// Validate that TargetId == Hash(pubkey)
+	if err := k.VerifyTargetId(synpayload.Payload.TargetId); err != nil {
+		return err
+	}
+	k.log.Infof("[Keysplitting] TargetID from Syn Message Verified")
+
+	// Tells parent Datachannel object to send SYNACK message with specified payload
+	k.log.Infof("[Keysplitting] Sending SynAck Message...")
+	return k.BuildSynAck(nonce, synpayload)
+}
+
+func (k *KeysplittingHelper) ValidateDataMessage(datapayload kysplContracts.DataPayload) error {
+	// Update hpointer, needs to be done asap for error reporting purposes
+	if err := k.UpdateHPointer(datapayload.Payload); err != nil {
+		return err
+	}
+
+	// Make sure BZECert hash matches existing hash
+	// In the future we should be getting a hash here that we can easily lookup in the map
+	if err := k.CheckBZECert(datapayload.Payload.BZECert); err != nil {
+		return err
+	}
+	k.log.Infof("[Keysplitting] BZE Certificate Validated")
+
+	// Verify client signature
+	if err := k.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); err != nil {
+		return err
+	}
+	k.log.Infof("[Keysplitting] Client Signature on Data Message Verified")
+
+	// Validate hash pointer
+	if err := k.VerifyHPointer(datapayload.Payload.HPointer); err != nil {
+		return err
+	}
+
+	// Validate that TargetId == Hash(pubkey)
+	if err := k.VerifyTargetId(datapayload.Payload.TargetId); err != nil {
+		return err
+	}
+	k.log.Infof("[Keysplitting] TargetID from Data Message Verified")
+
+	return nil
+}
+
 // If this is the beginning of the hash chain, then we create a nonce with a random value,
 // otherwise we use the hash of the previous value to maintain the hash chain and immutability
 func (k *KeysplittingHelper) GetNonce() string {
@@ -155,6 +231,9 @@ func (k *KeysplittingHelper) HashStruct(payload interface{}) (string, error) {
 			json.Unmarshal(rawpayload, &payloadMap)
 			lexicon, _ := json.Marshal(payloadMap) // Make the marshalled json, alphabetical to match client
 			k.log.Infof("hashing: %s", lexicon)
+
+			// This is because javascript translates CTRL + L as \f and golang translates it as \u000c.
+			// Gotta hash the same value to get matching signatures.
 			safeLexicon := strings.Replace(string(lexicon), "\\u000c", "\\f", -1)
 			return k.Hash(safeLexicon)
 		}

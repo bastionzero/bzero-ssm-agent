@@ -118,116 +118,55 @@ func (p *InteractiveCommandsPlugin) Execute(
 
 // InputStreamMessageHandler passes payload byte stream to shell stdin
 func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error {
-	log.Infof("[Keysplitting] Message received by InteractiveCommands with payload %v", streamDataMessage.PayloadType)
+	log.Infof("[Keysplitting] %v Message received by InteractiveCommands", mgsContracts.PayloadType(streamDataMessage.PayloadType))
 	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
 
 	case mgsContracts.Syn:
 		log.Infof("[Keysplitting] Syn Payload Received: %v", string(streamDataMessage.Payload))
-
-		var synpayload kysplContracts.SynPayload
-		if err := json.Unmarshal(streamDataMessage.Payload, &synpayload); err != nil {
-			// not a keysplitting error, also we can't possibly have the hpointer so it wouldn't be possible to associate the error with the correct message
-			message := fmt.Sprintf("Error occurred while parsing SynPayload json: %v", err)
-			// Is it icky that anyone can send a Syn or Data payload and get back the current state of the hpointer? Am I overreacting? -lucie
-			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
-		}
-		log.Infof("[Keysplitting] Syn Payload Unmarshalled")
-
-		// Get nonce either rand or hpointer (if there is one)
-		nonce := p.ksHelper.GetNonce()
-
-		// Update hpointer so we have it for the error messages
-		if err := p.ksHelper.UpdateHPointer(synpayload.Payload); err != nil {
-			return err
-		}
-
-		// pretty legit BZECert verification
-		if err := p.ksHelper.VerifyBZECert(synpayload.Payload.BZECert); err != nil {
-			return err
-		}
-
-		// Client Signature verification
-		bzehash, _ := p.ksHelper.HashStruct(synpayload.Payload.BZECert)
-		if err := p.ksHelper.VerifySignature(synpayload.Payload, synpayload.Signature, bzehash); err != nil {
-			return err
-		}
-		log.Infof("[Keysplitting] Client Signature on Syn Message Verified")
-
-		// Validate that TargetId == Hash(pubkey)
-		if err := p.ksHelper.VerifyTargetId(synpayload.Payload.TargetId); err != nil {
-			return err
-		}
-		log.Infof("[Keysplitting] TargetID from Syn Message Verified")
-
-		// Tells parent Datachannel object to send SYNACK message with specified payload
-		log.Infof("[Keysplitting] Sending SynAck Message...")
-		return p.ksHelper.BuildSynAck(nonce, synpayload)
+		return p.ksHelper.ProcessSyn(streamDataMessage.Payload)
 
 	case mgsContracts.Data:
 		log.Infof("[Keysplitting] Data Payload Received: %v", string(streamDataMessage.Payload))
 
 		var datapayload kysplContracts.DataPayload
+
 		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
 			message := fmt.Sprintf("[Keysplitting] Error occurred while parsing DataPayload json: %v", err)
 			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
 		}
 		log.Infof("[Keysplitting] Data Payload Unmarshalled...")
 
-		// Update hpointer, needs to be done asap for error reporting purposes
-		if err := p.ksHelper.UpdateHPointer(datapayload.Payload); err != nil {
-			return err
-		}
+		if err := p.ksHelper.ValidateDataMessage(datapayload); err == nil {
+			switch kysplContracts.KeysplittingAction(datapayload.Payload.Action) {
 
-		// Make sure BZECert hash matches existing hash
-		// In the future we should be getting a hash here that we can easily lookup in the map
-		if err := p.ksHelper.CheckBZECert(datapayload.Payload.BZECert); err != nil {
-			return err
-		}
-
-		// Verify client signature
-		if err := p.ksHelper.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); err != nil {
-			return err
-		}
-		log.Infof("[Keysplitting] Client Signature on Data Message Verified")
-
-		// Validate hash pointer
-		if err := p.ksHelper.VerifyHPointer(datapayload.Payload.HPointer); err != nil {
-			return err
-		}
-
-		// Validate that TargetId == Hash(pubkey)
-		if err := p.ksHelper.VerifyTargetId(datapayload.Payload.TargetId); err != nil {
-			return err
-		}
-		log.Infof("[Keysplitting] TargetID from Data Message Verified")
-
-		// Do something with action
-		switch datapayload.Payload.Action {
-
-		case string(kysplContracts.ShellOpen):
-			p.channelOpen = true
-			log.Infof("[Keysplitting] shell/open Action Completed")
-		case string(kysplContracts.ShellClose):
-			p.channelOpen = false
-			log.Infof("[Keysplitting] shell/close Action Completed")
-		case string(kysplContracts.ShellInput):
-			if err := p.forwardMessage(log, streamDataMessage, mgsContracts.Output, datapayload.Payload); err != nil {
-				return err
+			case kysplContracts.ShellOpen:
+				p.channelOpen = true
+				log.Infof("[Keysplitting] shell/open Action Completed")
+			case kysplContracts.ShellClose:
+				p.channelOpen = false
+				log.Infof("[Keysplitting] shell/close Action Completed")
+			case kysplContracts.ShellInput:
+				if err := p.forwardMessage(log, streamDataMessage, mgsContracts.Output, datapayload.Payload); err != nil {
+					return err
+				}
+			case kysplContracts.ShellResize:
+				if err := p.forwardMessage(log, streamDataMessage, mgsContracts.Size, datapayload.Payload); err != nil {
+					return err
+				}
+				log.Infof("[Keysplitting] shell/resize Action Completed")
+			default:
+				message := fmt.Sprintf("[Keysplitting] Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
+				return p.ksHelper.BuildError(message, kysplContracts.KeysplittingActionError)
 			}
-		case string(kysplContracts.ShellResize):
-			if err := p.forwardMessage(log, streamDataMessage, mgsContracts.Size, datapayload.Payload); err != nil {
-				return err
-			}
-			log.Infof("[Keysplitting] shell/resize Action Completed")
-		default:
-			message := fmt.Sprintf("[Keysplitting] Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
-			return p.ksHelper.BuildError(message, kysplContracts.KeysplittingActionError)
+
+			// Tells parent Datachannel object to send DATAACK message with specified payload
+			log.Infof("[Keysplitting] Sending DataAck Message...")
+			return p.ksHelper.BuildDataAck(datapayload)
+		} else {
+			return err
 		}
 
-		// Tells parent Datachannel object to send DATAACK message with specified payload
-		log.Infof("[Keysplitting] Sending DataAck Message...")
-		return p.ksHelper.BuildDataAck(datapayload)
-
+	// Temporary for backwards compatability
 	case mgsContracts.Size:
 		return p.shell.InputStreamMessageHandler(log, streamDataMessage)
 
