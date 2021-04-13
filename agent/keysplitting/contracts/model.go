@@ -35,9 +35,9 @@ type SynAckPayload struct {
 type SynAckPayloadPayload struct {
 	Nonce           string `json:"nonce"`
 	HPointer        string `json:"hPointer"`
-	TargetPublicKey string `json:"targetPublicKey"`
 	Type            string `json:"type"`
 	Action          string `json:"action"`
+	TargetPublicKey string `json:"targetPublicKey"`
 }
 
 // Data messages are always received from the client
@@ -119,6 +119,7 @@ const (
 	BZECertInvalidNonce        KeysplittingErrorType = "BZECertInvalidNonce"
 	BZECertUnrecognized        KeysplittingErrorType = "BZECertUnrecognized"
 	BZECertInvalidProvider     KeysplittingErrorType = "BZECertProviderError"
+	BZECertExpired             KeysplittingErrorType = "BZECertExpired"
 	HPointerError              KeysplittingErrorType = "HPointerError"
 	SigningError               KeysplittingErrorType = "SigningError"
 	SignatureVerificationError KeysplittingErrorType = "SignatureVerificationError"

@@ -131,7 +131,7 @@ func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamD
 		var datapayload kysplContracts.DataPayload
 
 		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
-			message := fmt.Sprintf("[Keysplitting] Error occurred while parsing DataPayload json: %v", err)
+			message := fmt.Sprintf("Error occurred while parsing DataPayload json: %v", err)
 			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
 		}
 		log.Infof("[Keysplitting] Data Payload Unmarshalled...")
@@ -155,7 +155,7 @@ func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamD
 				}
 				log.Infof("[Keysplitting] shell/resize Action Completed")
 			default:
-				message := fmt.Sprintf("[Keysplitting] Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
+				message := fmt.Sprintf("Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
 				return p.ksHelper.BuildError(message, kysplContracts.KeysplittingActionError)
 			}
 
@@ -166,12 +166,22 @@ func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamD
 			return err
 		}
 
-	// Temporary for backwards compatability
+	// For backwards compatability, we will accept OG terminal resizing messages, but ignore them
 	case mgsContracts.Size:
-		return p.shell.InputStreamMessageHandler(log, streamDataMessage)
+		return nil
 
-	default: // fail safe
-		return p.shell.InputStreamMessageHandler(log, streamDataMessage)
+	case mgsContracts.Output:
+		// Ignore keep alive messages
+		if len(streamDataMessage.Payload) == 0 {
+			return nil
+		} else { // OG way to communicate with shell, so we want to output correct error message
+			message := fmt.Sprintf("This Agent requires a correctly formatted Keysplitting message to communicate with the shell")
+			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
+		}
+
+	default: // fail secure
+		message := fmt.Sprintf("This Agent requires a correctly formatted Keysplitting message to communicate with the shell")
+		return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
 	}
 }
 
