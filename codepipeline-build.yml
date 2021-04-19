@@ -16,6 +16,7 @@ phases:
       - git fetch --tags
       - LatestTag=$(git describe --tags --abbrev=0)
       - grep -q 'bzero-' <<< $LatestTag && echo "Tag is valid" || (echo "Tag $LatestTag is invalid" && exit 1)
+      - echo "Using tag $LatestTag"
       - git checkout $LatestTag
       - LatestVersion=$(echo $LatestTag | sed 's/bzero-//g' )
       - echo $LatestVersion > VERSION
