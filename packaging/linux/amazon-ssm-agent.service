@@ -7,6 +7,7 @@ Type=simple
 WorkingDirectory=/usr/bin/
 ExecStart=/usr/bin/bzero-ssm-agent
 KillMode=process
+Environment=AWS_SHARED_CREDENTIALS_FILE=~/.bzero/credentials
 
 # Restart the agent regardless of whether it crashes (and returns a non-zero result code) or if
 # is terminated normally (e.g. via 'kill -HUP').  Delay restart so that the agent is less likely
