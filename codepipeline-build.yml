@@ -5,7 +5,6 @@ env:
   variables:
     TZ: "America/New_York date"
     ReleaseDir: bzero-release
-  git-credential-helper: yes
 phases:
   install:
     runtime-versions:
