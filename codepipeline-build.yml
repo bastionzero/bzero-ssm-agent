@@ -16,10 +16,10 @@ phases:
       - git fetch --tags
       - LatestTag=$(git describe --tags --abbrev=0)
       - grep -q 'bzero-' <<< $LatestTag && echo "Tag is valid" || (echo "Tag $LatestTag is invalid" && exit 1)
-      - echo "Using tag $LatestTag"
+      - echo "Using agent version $LatestTag"
       - git checkout $LatestTag
-      - LatestVersion=$(echo $LatestTag | sed 's/bzero-//g' )
-      - echo $LatestVersion > VERSION
+      - AgentVersion=$(echo $LatestTag | sed 's/bzero-//g' )
+      - echo $AgentVersion > VERSION
   build:
     commands:
       - echo Build started...
@@ -27,16 +27,19 @@ phases:
   post_build:
     commands:
       - echo Post build started...
-      - echo Copying all files to $LatestVersion folder...
-      - mkdir -p $ReleaseDir/$LatestVersion/x86_64
-      - mkdir -p $ReleaseDir/$LatestVersion/arm64
-      - cp -a bin/VERSION $ReleaseDir/$LatestVersion
-      - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/$LatestVersion
-      - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/$LatestVersion/x86_64
-      - cp -a bin/debian_arm64/bzero-ssm-agent.deb $ReleaseDir/$LatestVersion/arm64
-      - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/$LatestVersion
-      - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/$LatestVersion/x86_64
-      - cp -a bin/linux_arm64/bzero-ssm-agent.rpm $ReleaseDir/$LatestVersion/arm64
+      - echo Copying all files to $ReleaseDir folder...
+      - mkdir -p $ReleaseDir/x86_64
+      - mkdir -p $ReleaseDir/arm64
+      - cp -a bin/VERSION $ReleaseDir/
+      - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/
+      - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/x86_64
+      - cp -a bin/debian_arm64/bzero-ssm-agent.deb $ReleaseDir/arm64
+      - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/
+      - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/x86_64
+      - cp -a bin/linux_arm64/bzero-ssm-agent.rpm $ReleaseDir/arm64
+env:
+  exported-variables:
+    - AgentVersion
 artifacts:
   files:
     - "**/*"
