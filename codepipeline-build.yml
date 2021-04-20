@@ -5,6 +5,8 @@ env:
   variables:
     TZ: "America/New_York date"
     ReleaseDir: bzero-release
+  exported-variables:
+    - AgentVersion
 phases:
   install:
     runtime-versions:
@@ -14,9 +16,10 @@ phases:
       - echo Pre-Build started...
       - LatestTag=$(git describe --tags --abbrev=0)
       - grep -q 'bzero-' <<< $LatestTag && echo "Tag is valid" || (echo "Tag $LatestTag is invalid" && exit 1)
-      - echo "Using agent version $LatestTag"
+      - echo "Using latest git tag $LatestTag"
       - git checkout $LatestTag
       - AgentVersion=$(echo $LatestTag | sed 's/bzero-//g' )
+      - echo "Using AgentVersion $AgentVersion"
       - echo $AgentVersion > VERSION
   build:
     commands:
@@ -35,9 +38,6 @@ phases:
       - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/
       - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/x86_64
       - cp -a bin/linux_arm64/bzero-ssm-agent.rpm $ReleaseDir/arm64
-env:
-  exported-variables:
-    - AgentVersion
 artifacts:
   files:
     - "**/*"
