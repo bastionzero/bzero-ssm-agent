@@ -15,6 +15,7 @@
 package interactivecommands
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
@@ -22,6 +23,8 @@ import (
 	agentContracts "github.com/aws/amazon-ssm-agent/agent/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler"
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
+	"github.com/aws/amazon-ssm-agent/agent/keysplitting"
+	kysplContracts "github.com/aws/amazon-ssm-agent/agent/keysplitting/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/session/datachannel"
@@ -32,8 +35,10 @@ import (
 
 // InteractiveCommandsPlugin is the type for the plugin.
 type InteractiveCommandsPlugin struct {
-	context context.T
-	shell   shell.IShellPlugin
+	context     context.T
+	shell       shell.IShellPlugin
+	channelOpen bool
+	ksHelper    keysplitting.KeysplittingHelper
 }
 
 // Returns parameters required for CLI/console to start session
@@ -53,12 +58,18 @@ func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
 		return nil, err
 	}
 
-	var plugin = InteractiveCommandsPlugin{
-		context: context,
-		shell:   shellPlugin,
+	log := context.Log()
+	if helper, err := keysplitting.Init(log); err == nil {
+		var plugin = InteractiveCommandsPlugin{
+			context:     context,
+			shell:       shellPlugin,
+			channelOpen: false,
+			ksHelper:    helper,
+		}
+		return &plugin, nil
+	} else {
+		return nil, err
 	}
-
-	return &plugin, nil
 }
 
 // name returns the name of Interactive commands Plugin
@@ -107,5 +118,84 @@ func (p *InteractiveCommandsPlugin) Execute(
 
 // InputStreamMessageHandler passes payload byte stream to shell stdin
 func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error {
-	return p.shell.InputStreamMessageHandler(log, streamDataMessage)
+	log.Infof("[Keysplitting] %v Message received by InteractiveCommands", mgsContracts.PayloadType(streamDataMessage.PayloadType))
+	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
+
+	case mgsContracts.Syn:
+		log.Infof("[Keysplitting] Syn Payload Received: %v", string(streamDataMessage.Payload))
+		return p.ksHelper.ProcessSyn(streamDataMessage.Payload)
+
+	case mgsContracts.Data:
+		log.Infof("[Keysplitting] Data Payload Received: %v", string(streamDataMessage.Payload))
+
+		var datapayload kysplContracts.DataPayload
+
+		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
+			message := fmt.Sprintf("Error occurred while parsing DataPayload json: %v", err)
+			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
+		}
+		log.Infof("[Keysplitting] Data Payload Unmarshalled...")
+
+		if err := p.ksHelper.ValidateDataMessage(datapayload); err == nil {
+			switch kysplContracts.KeysplittingAction(datapayload.Payload.Action) {
+
+			case kysplContracts.ShellOpen:
+				p.channelOpen = true
+				log.Infof("[Keysplitting] shell/open Action Completed")
+			case kysplContracts.ShellClose:
+				p.channelOpen = false
+				log.Infof("[Keysplitting] shell/close Action Completed")
+			case kysplContracts.ShellInput:
+				if err := p.forwardMessage(log, streamDataMessage, mgsContracts.Output, datapayload.Payload); err != nil {
+					return err
+				}
+			case kysplContracts.ShellResize:
+				if err := p.forwardMessage(log, streamDataMessage, mgsContracts.Size, datapayload.Payload); err != nil {
+					return err
+				}
+				log.Infof("[Keysplitting] shell/resize Action Completed")
+			default:
+				message := fmt.Sprintf("Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
+				return p.ksHelper.BuildError(message, kysplContracts.KeysplittingActionError)
+			}
+
+			// Tells parent Datachannel object to send DATAACK message with specified payload
+			log.Infof("[Keysplitting] Sending DataAck Message...")
+			return p.ksHelper.BuildDataAck(datapayload)
+		} else {
+			return err
+		}
+
+	// For backwards compatability, we will accept OG terminal resizing messages, but ignore them
+	case mgsContracts.Size:
+		return nil
+
+	case mgsContracts.Output:
+		// Ignore keep alive messages
+		if len(streamDataMessage.Payload) == 0 {
+			return nil
+		} else { // OG way to communicate with shell, so we want to output correct error message
+			message := fmt.Sprintf("This Agent requires a correctly formatted Keysplitting message to communicate with the shell")
+			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
+		}
+
+	default: // fail secure
+		message := fmt.Sprintf("This Agent requires a correctly formatted Keysplitting message to communicate with the shell")
+		return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
+	}
+}
+
+// shell message function only processes two kinds of messages: Output (for shell input) and Size (for terminal resizing)
+func (p *InteractiveCommandsPlugin) forwardMessage(log log.T, streamDataMessage mgsContracts.AgentMessage, payloadtype mgsContracts.PayloadType, payload kysplContracts.DataPayloadPayload) error {
+	if p.channelOpen {
+		agentMessage := mgsContracts.AgentMessage{
+			MessageType: streamDataMessage.MessageType,
+			Payload:     []byte(payload.Payload), // a string for Output or a json {cols: x, rows: y} for Size
+			PayloadType: uint32(payloadtype),     // either Output or Size
+		}
+		return p.shell.InputStreamMessageHandler(log, agentMessage)
+	} else {
+		message := fmt.Sprintf("[Keysplitting] Keysplitting Handshake is required to communicate with shell")
+		return p.ksHelper.BuildError(message, kysplContracts.ChannelClosed)
+	}
 }
