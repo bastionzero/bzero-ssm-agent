@@ -35,9 +35,9 @@ type SynAckPayload struct {
 type SynAckPayloadPayload struct {
 	Nonce           string `json:"nonce"`
 	HPointer        string `json:"hPointer"`
-	TargetPublicKey string `json:"targetPublicKey"`
 	Type            string `json:"type"`
 	Action          string `json:"action"`
+	TargetPublicKey string `json:"targetPublicKey"`
 }
 
 // Data messages are always received from the client
@@ -87,8 +87,12 @@ type ErrorPayload struct {
 type KeysplittingAction string
 
 const (
-	SshOpen  KeysplittingAction = "ssh/open"
-	SshClose KeysplittingAction = "ssh/close"
+	SshOpen     KeysplittingAction = "ssh/open"
+	SshClose    KeysplittingAction = "ssh/close"
+	ShellOpen   KeysplittingAction = "shell/open"
+	ShellClose  KeysplittingAction = "shell/close"
+	ShellInput  KeysplittingAction = "shell/input"
+	ShellResize KeysplittingAction = "shell/resize"
 )
 
 type SshOpenActionPayload struct {
@@ -115,6 +119,7 @@ const (
 	BZECertInvalidNonce        KeysplittingErrorType = "BZECertInvalidNonce"
 	BZECertUnrecognized        KeysplittingErrorType = "BZECertUnrecognized"
 	BZECertInvalidProvider     KeysplittingErrorType = "BZECertProviderError"
+	BZECertExpired             KeysplittingErrorType = "BZECertExpired"
 	HPointerError              KeysplittingErrorType = "HPointerError"
 	SigningError               KeysplittingErrorType = "SigningError"
 	SignatureVerificationError KeysplittingErrorType = "SignatureVerificationError"
@@ -123,4 +128,6 @@ const (
 	KeysplittingActionError    KeysplittingErrorType = "KeysplittingActionError"
 	InvalidPayload             KeysplittingErrorType = "InvalidPayload"
 	Unknown                    KeysplittingErrorType = "Unknown"
+	ChannelClosed              KeysplittingErrorType = "ChannelClosed"
+	OutdatedHPointer           KeysplittingErrorType = "OutdatedHPointer"
 )
