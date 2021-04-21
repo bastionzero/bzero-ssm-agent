@@ -54,7 +54,6 @@ func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
 		context: context,
 		shell:   shellPlugin,
 	}
-
 	return &plugin, nil
 }
 
