@@ -1,0 +1,44 @@
+# spec: https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html
+version: 0.2
+env:
+  variables:
+    TZ: "America/New_York date"
+    ReleaseDir: bzero-release
+  exported-variables:
+    - AgentVersion
+phases:
+  install:
+    runtime-versions:
+      golang: 1.14
+  pre_build:
+    commands:
+      - echo Pre-Build started...
+      - LatestTag=$(git describe --tags --abbrev=0)
+      - grep -q 'bzero-' <<< $LatestTag && echo "Tag is valid" || (echo "Tag $LatestTag is invalid" && exit 1)
+      - echo "Using latest git tag $LatestTag"
+      - git checkout $LatestTag
+      - AgentVersion=$(echo $LatestTag | sed 's/bzero-//g' )
+      - echo "Using AgentVersion $AgentVersion"
+      - echo $AgentVersion > VERSION
+  build:
+    commands:
+      - echo Build started...
+      - make bzero-release
+  post_build:
+    commands:
+      - echo Post build started...
+      - echo Copying all files to $ReleaseDir folder...
+      - mkdir -p $ReleaseDir/x86_64
+      - mkdir -p $ReleaseDir/arm64
+      - cp -a bin/VERSION $ReleaseDir/
+      - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/
+      - cp -a bin/debian_amd64/bzero-ssm-agent.deb $ReleaseDir/x86_64
+      - cp -a bin/debian_arm64/bzero-ssm-agent.deb $ReleaseDir/arm64
+      - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/
+      - cp -a bin/linux_amd64/bzero-ssm-agent.rpm $ReleaseDir/x86_64
+      - cp -a bin/linux_arm64/bzero-ssm-agent.rpm $ReleaseDir/arm64
+artifacts:
+  files:
+    - "**/*"
+  base-directory: $ReleaseDir
+  name: release
