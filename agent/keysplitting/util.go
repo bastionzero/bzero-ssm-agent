@@ -31,7 +31,7 @@ const (
 	// https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens#payload-claims)
 	microsoftPersonalAccountTenantId = "9188040d-6c67-4c5b-b112-36a304b66dad"
 	BZeroConfig                      = "BZeroConfig"
-	week                             = time.Hour * 168 // 168 hours = 7 days
+	bzecertLifetime                  = time.Hour * 24 * 365 * 5 // 5 years
 )
 
 type KeysplittingHelper struct {
@@ -360,9 +360,9 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	if skipExpiry {
 		now := time.Now()
 		iat := time.Unix(claims.IssuedAt, 0) // Confirmed both Microsoft and Google use Unix
-		if now.After(iat.Add(week)) {
+		if now.After(iat.Add(bzecertLifetime)) {
 			message := fmt.Sprintf("InitialIdToken Expired {Current Time = %v, Token iat = %v}", now, iat)
-			return time.Time{}, k.BuildError(message, kysplContracts.BZECertInvalidIDToken)
+			return time.Time{}, k.BuildError(message, kysplContracts.BZECertExpiredInitialIdToken)
 		}
 	}
 
