@@ -3,7 +3,7 @@ version: 0.2
 env:
   variables:
     TZ: "America/New_York date"
-    ReleaseDir: bzero-release
+    ReleaseDir: bzero-release-artifacts
   exported-variables:
     - AgentVersion
 phases:
