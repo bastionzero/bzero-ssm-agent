@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
-	keysplitting "github.com/aws/amazon-ssm-agent/agent/keysplitting"
+	bzeroreg "github.com/aws/amazon-ssm-agent/agent/bzero/registration"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/fingerprint"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/registration"
@@ -68,6 +68,9 @@ func parseFlags() {
 	// Show bzeroInfo flag
 	flag.BoolVar(&bzeroInfo, bzeroInfoFlag, false, "")
 
+	// Bzero Registration flag
+	flag.StringVar(&bzero, bzeroFlag, "", "")
+
 	flag.Parse()
 }
 
@@ -85,7 +88,7 @@ func handleBZeroInfo() {
 func printBZeroPubKey() {
 	bzeroConfig := map[string]string{}
 
-	config, err := vault.Retrieve(keysplitting.BZeroConfig)
+	config, err := vault.Retrieve(bzeroreg.BZeroConfigStorage)
 	if err != nil {
 		fmt.Printf("Error retriving BZero config: %v", err)
 		os.Exit(1)
@@ -107,7 +110,7 @@ func printBZeroInfo(info string) {
 	fmt.Printf("[BZeroAgentInfo]%s\n", info)
 }
 
-func bzeroInit(log logger.T) {
+func bzeroInit(log logger.T) (exitCode int) {
 	// BZero Init function to:
 	//  * Verify orgProvider, if custom
 	//  * Generate Pub/Priv keypair
@@ -119,7 +122,7 @@ func bzeroInit(log logger.T) {
 	// Catch any errors that might have been generated
 	if err != nil {
 		log.Errorf("BZero Generation of Keys Failed: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Convert our keys to hex format before storing it
@@ -135,15 +138,16 @@ func bzeroInit(log logger.T) {
 	data, err := json.Marshal(keys)
 	if err != nil {
 		log.Errorf("BZero Marshalling of Keys Failed: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
-	if err = vault.Store(keysplitting.BZeroConfig, data); err != nil {
+	if err = vault.Store(bzeroreg.BZeroConfigStorage, data); err != nil {
 		log.Errorf("BZero Storing of Config Failed: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
 	log.Info("Successfully created and stored BZero Config!")
+	return 0
 }
 
 // handles registration and fingerprint flags
@@ -151,7 +155,11 @@ func handleRegistrationAndFingerprintFlags(log logger.T) {
 	if flag.NFlag() > 0 {
 		exitCode := 1
 		if register {
-			exitCode = processRegistration(log)
+			if bzero != "" {
+				exitCode = processBZeroRegistration(log)
+			} else {
+				exitCode = processRegistration(log)
+			}
 		} else if fpFlag {
 			exitCode = processFingerprint(log)
 		} else {
@@ -178,13 +186,70 @@ func handleAgentVersionFlag() {
 func flagUsage() {
 	fmt.Fprintln(os.Stderr, "\n\nCommand-line Usage:")
 	fmt.Fprintln(os.Stderr, "\t-register\tregister managed instance")
-	fmt.Fprintln(os.Stderr, "\t\t-id\tSSM activation ID    \t(REQUIRED)")
-	fmt.Fprintln(os.Stderr, "\t\t-code\tSSM activation code\t(REQUIRED)")
-	fmt.Fprintln(os.Stderr, "\t\t-region\tSSM region       \t(REQUIRED)")
+	fmt.Fprintln(os.Stderr, "\t\t-id\tSSM activation ID")
+	fmt.Fprintln(os.Stderr, "\t\t-code\tSSM activation code")
+	fmt.Fprintln(os.Stderr, "\t\t-region\tSSM region")
 	fmt.Fprintln(os.Stderr, "\n\t\t-clear\tClears the previously saved SSM registration")
 	fmt.Fprintln(os.Stderr, "\t-fingerprint\tWhether to update the machine fingerprint similarity threshold\t(OPTIONAL)")
 	fmt.Fprintln(os.Stderr, "\t\t-similarityThreshold\tThe new required percentage of matching hardware values\t(OPTIONAL)")
 	fmt.Fprintln(os.Stderr, "\n\t-y\tAnswer yes for all questions")
+}
+
+// Used for checking that all required fields are present
+func checkMissingBZeroFields(reg bzeroreg.BZeroRegInfo) bool {
+	// Print out a specific message if missing registration data
+	missing := []string{}
+	if reg.RegID == "" {
+		missing = append(missing, "Registration ID")
+	}
+	if reg.RegSecret == "" {
+		missing = append(missing, "Registration Secret")
+	}
+	if reg.TargetName == "" {
+		missing = append(missing, "Target Name")
+	}
+	if reg.EnvID == "" {
+		missing = append(missing, "Environment ID")
+	}
+	if reg.APIUrl == "" {
+		missing = append(missing, "Registration API URL")
+	}
+
+	if len(missing) != 0 {
+		fmt.Printf("[BZero Registration] Missing Required field(s): %s", strings.Join(missing, ", "))
+		return false
+	} else {
+		return true
+	}
+}
+
+func processBZeroRegistration(log logger.T) (exitCode int) {
+	var regInfo bzeroreg.BZeroRegInfo
+
+	// We're going to unmarshal and then marshal the data because we want to make sure we
+	// control the variable names and only store the things that we'll know what to do with.
+	// Also, this way we can catch if the data in malformed or was incorrectly generated asap
+	if err := json.Unmarshal([]byte(bzero), &regInfo); err != nil {
+		log.Errorf("Malformed BZero Registration Info, Could Not Unmarshal Data")
+		return 1
+	}
+
+	// check if all required fields present
+	if !checkMissingBZeroFields(regInfo) {
+		return 1
+	}
+
+	data, _ := json.Marshal(regInfo)
+
+	if err := vault.Store(bzeroreg.BZeroRegStorage, data); err != nil {
+		log.Errorf("BZero Storing of Registration Information Failed: %v", err)
+		return 1
+	}
+
+	log.Infof("Successfully Stored BZero Registration Data")
+
+	// Generate our keys, and store that with our org Id
+	return bzeroInit(log)
 }
 
 // processRegistration handles flags related to the registration category
@@ -197,9 +262,6 @@ func processRegistration(log logger.T) (exitCode int) {
 		flagUsage()
 		return 1
 	}
-
-	// Generate our keys, and store that with our org Id
-	bzeroInit(log)
 
 	// check if previously registered
 	if !force && registration.InstanceID() != "" {
