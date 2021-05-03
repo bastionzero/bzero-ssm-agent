@@ -41,10 +41,12 @@ const (
 	fingerprintFlag         = "fingerprint"
 	similarityThresholdFlag = "similarityThreshold"
 	bzeroInfoFlag           = "bzeroInfo"
+	bzeroFlag               = "bzero"
 )
 
 var (
-	activationCode, activationID, region, orgID, orgProvider    string
+	activationCode, activationID, region                        string
+	orgID, orgProvider, bzero                                   string
 	register, clear, force, fpFlag, agentVersionFlag, bzeroInfo bool
 	similarityThreshold                                         int
 	registrationFile                                            = filepath.Join(appconfig.DefaultDataStorePath, "registration")
@@ -59,7 +61,7 @@ func start(log logger.T) (app.CoreAgent, logger.T, error) {
 		return nil, log, err
 	}
 
-	context = context.With("[amazon-ssm-agent]")
+	context = context.With("[bzero-ssm-agent]")
 	message := messagebus.NewMessageBus(context)
 	if err := message.Start(); err != nil {
 		return nil, log, fmt.Errorf("failed to start message bus, %s", err)
