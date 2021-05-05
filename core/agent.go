@@ -27,7 +27,10 @@ import (
 	"syscall"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
+	bzeroreg "github.com/aws/amazon-ssm-agent/agent/bzero/registration"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
+	"github.com/aws/amazon-ssm-agent/agent/managedInstances/registration"
+	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	"github.com/aws/amazon-ssm-agent/core/app"
 	"github.com/aws/amazon-ssm-agent/core/app/bootstrap"
 	"github.com/aws/amazon-ssm-agent/core/ipc/messagebus"
@@ -38,8 +41,6 @@ const (
 	activationCodeFlag      = "code"
 	activationIDFlag        = "id"
 	regionFlag              = "region"
-	orgIDFlag               = "org"
-	orgProviderFlag         = "orgProvider"
 	registerFlag            = "register"
 	versionFlag             = "version"
 	fingerprintFlag         = "fingerprint"
@@ -49,15 +50,40 @@ const (
 )
 
 var (
-	activationCode, activationID, region                        string
-	orgID, orgProvider, bzero                                   string
-	register, clear, force, fpFlag, agentVersionFlag, bzeroInfo bool
-	similarityThreshold                                         int
-	registrationFile                                            = filepath.Join(appconfig.DefaultDataStorePath, "registration")
+	activationCode, activationID, region             string
+	orgID, orgProvider, bzero                        string // bzero args
+	register, clear, force, fpFlag, agentVersionFlag bool
+	bzeroInfo                                        bool // bzero args
+	similarityThreshold                              int
+	registrationFile                                 = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )
 
 func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	log.WriteEvent(logger.AgentTelemetryMessage, "", logger.AmazonAgentStartEvent)
+
+	// Check if there is an activation code to see if we've already registered
+	if force && registration.InstanceID() == "" {
+		log.Infof("Agent is not Registered with BZero.  Attempting to register now...")
+
+		if resp, err := bzeroreg.Register(log); err != nil {
+			log.Infof("Error during BZero Registration; Exiting")
+			return nil, log, err
+
+		} else {
+			log.Infof("Agent Registered.  Activating Agent.")
+
+			if err := activateAgent(resp, log); err != nil {
+				rerr := fmt.Errorf("Error Activating Agent: %v", err)
+				log.Errorf(rerr.Error())
+				return nil, log, err
+
+			} else {
+				log.Infof("Sucessfully Activated Agent")
+			}
+		}
+	} else {
+		log.Infof("Agent is Registered with BZero. Startup will continue normally.")
+	}
 
 	bs := bootstrap.NewBootstrap(log, filesystem.NewFileSystem())
 	context, err := bs.Init()
@@ -75,6 +101,40 @@ func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	ssmAgentCore.Start()
 
 	return ssmAgentCore, context.Log(), nil
+}
+
+// Check for registration information
+func isRegistered() bool {
+	if awsRegFile, err := vault.Retrieve(registrationFile); err != nil || awsRegFile == nil {
+		return false
+	} else {
+		return true
+	}
+}
+
+// Process registration once details are retrieved from bzero
+func activateAgent(resp bzeroreg.BZeroRegResponse, log logger.T) error {
+	activationCode = resp.ActivationCode
+	activationID = resp.ActivationId
+	region = resp.ActivationRegion
+
+	orgID = resp.OrgID
+	orgProvider = resp.OrgProvider
+
+	log.Info(activationCode, activationID, region)
+
+	if code := processRegistration(log); code != 0 {
+		return fmt.Errorf("Error Processing Standard Registration")
+	}
+
+	log.Infof("Successfully Processed Standard Registration")
+
+	if code := bzeroInit(log); code != 0 {
+		return fmt.Errorf("Error while Initializing Bzero Variables")
+	} else {
+		log.Infof("Sucessfully Initialized and Stored BZero Config!")
+		return nil
+	}
 }
 
 func blockUntilSignaled(log logger.T) {
@@ -108,7 +168,7 @@ func run(log logger.T) {
 	// run ssm agent
 	coreAgent, contextLog, err := start(log)
 	if err != nil {
-		contextLog.Errorf("error occurred when starting amazon-ssm-agent: %v", err)
+		contextLog.Errorf("error occurred when starting bzero-ssm-agent: %v", err)
 		return
 	}
 	blockUntilSignaled(contextLog)

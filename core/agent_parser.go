@@ -51,10 +51,6 @@ func parseFlags() {
 	flag.StringVar(&region, regionFlag, "", "")
 	flag.BoolVar(&agentVersionFlag, versionFlag, false, "")
 
-	// OrgID flag
-	flag.StringVar(&orgID, orgIDFlag, "", "")
-	flag.StringVar(&orgProvider, orgProviderFlag, "", "")
-
 	// clear registration
 	flag.BoolVar(&clear, "clear", false, "")
 
@@ -90,16 +86,16 @@ func printBZeroPubKey() {
 
 	config, err := vault.Retrieve(bzeroreg.BZeroConfigStorage)
 	if err != nil {
-		fmt.Printf("Error retriving BZero config: %v", err)
-		os.Exit(1)
+		fmt.Printf("[BZero Registration] Error Retrieving BZero Config: %v", err)
+		os.Exit(bzeroreg.BZeroRegErrorExitCode)
 	} else if config == nil {
-		fmt.Printf("BZero Config file is empty!")
-		os.Exit(1)
+		fmt.Printf("[BZero Registration] BZero Config File is Empty!")
+		os.Exit(bzeroreg.BZeroRegErrorExitCode)
 	}
 
 	// Unmarshal the retrieved data
 	if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
-		fmt.Printf("Error retriving BZero config: %v", err)
+		fmt.Printf("[BZero Registration] Error Retrieving BZero Config: %v", err)
 		os.Exit(1)
 	}
 
@@ -107,7 +103,7 @@ func printBZeroPubKey() {
 }
 
 func printBZeroInfo(info string) {
-	fmt.Printf("[BZeroAgentInfo]%s\n", info)
+	fmt.Printf("[BZeroAgentInfo] %s\n", info)
 }
 
 func bzeroInit(log logger.T) (exitCode int) {
@@ -121,8 +117,8 @@ func bzeroInit(log logger.T) (exitCode int) {
 
 	// Catch any errors that might have been generated
 	if err != nil {
-		log.Errorf("BZero Generation of Keys Failed: %v", err)
-		return 1
+		log.Errorf("[BZero Registration] Key Generation Failed: %v", err)
+		return bzeroreg.BZeroRegErrorExitCode
 	}
 
 	// Convert our keys to hex format before storing it
@@ -137,16 +133,44 @@ func bzeroInit(log logger.T) (exitCode int) {
 	}
 	data, err := json.Marshal(keys)
 	if err != nil {
-		log.Errorf("BZero Marshalling of Keys Failed: %v", err)
-		return 1
+		log.Errorf("[BZero Registration] Marshalling Keys Failed: %v", err)
+		return bzeroreg.BZeroRegErrorExitCode
 	}
 
 	if err = vault.Store(bzeroreg.BZeroConfigStorage, data); err != nil {
-		log.Errorf("BZero Storing of Config Failed: %v", err)
-		return 1
+		log.Errorf("[BZero Registration] Storing Bzero Config Failed: %v", err)
+		return bzeroreg.BZeroRegErrorExitCode
 	}
 
-	log.Info("Successfully created and stored BZero Config!")
+	log.Info("[BZero Registration] Successfully Created and Stored BZero Config!")
+	return 0
+}
+
+func processBZeroRegistration(log logger.T) (exitCode int) {
+	var regInfo bzeroreg.BZeroRegInfo
+
+	// We're going to unmarshal and then marshal the data because we want to make sure we
+	// control the variable names and only store the things that we'll know what to do with.
+	// Also, this way we can catch if the data in malformed or was incorrectly generated asap
+	if err := json.Unmarshal([]byte(bzero), &regInfo); err != nil {
+		log.Errorf("[BZero Registration] Malformed BZero Registration Info, Could Not Unmarshal Data")
+		return bzeroreg.BZeroRegErrorExitCode
+	}
+
+	// check if all required fields present
+	if !checkMissingBZeroFields(regInfo) {
+		return bzeroreg.BZeroRegErrorExitCode
+	}
+
+	data, _ := json.Marshal(regInfo)
+
+	if err := vault.Store(bzeroreg.BZeroRegStorage, data); err != nil {
+		log.Errorf("[BZero Registration] BZero Storing of Registration Information Failed: %v", err)
+		return bzeroreg.BZeroRegErrorExitCode
+	}
+
+	log.Infof("[BZero Registration] Successfully Stored BZero Registration Data")
+
 	return 0
 }
 
@@ -221,35 +245,6 @@ func checkMissingBZeroFields(reg bzeroreg.BZeroRegInfo) bool {
 	} else {
 		return true
 	}
-}
-
-func processBZeroRegistration(log logger.T) (exitCode int) {
-	var regInfo bzeroreg.BZeroRegInfo
-
-	// We're going to unmarshal and then marshal the data because we want to make sure we
-	// control the variable names and only store the things that we'll know what to do with.
-	// Also, this way we can catch if the data in malformed or was incorrectly generated asap
-	if err := json.Unmarshal([]byte(bzero), &regInfo); err != nil {
-		log.Errorf("Malformed BZero Registration Info, Could Not Unmarshal Data")
-		return 1
-	}
-
-	// check if all required fields present
-	if !checkMissingBZeroFields(regInfo) {
-		return 1
-	}
-
-	data, _ := json.Marshal(regInfo)
-
-	if err := vault.Store(bzeroreg.BZeroRegStorage, data); err != nil {
-		log.Errorf("BZero Storing of Registration Information Failed: %v", err)
-		return 1
-	}
-
-	log.Infof("Successfully Stored BZero Registration Data")
-
-	// Generate our keys, and store that with our org Id
-	return bzeroInit(log)
 }
 
 // processRegistration handles flags related to the registration category
