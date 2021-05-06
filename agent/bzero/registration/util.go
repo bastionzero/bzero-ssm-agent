@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/aws/amazon-ssm-agent/agent/log"
@@ -19,7 +20,7 @@ const (
 
 	// Purely internal
 	maxRegistrationRetry = 2
-	retrySleep           = 5 * time.Second
+	retrySleep           = 10 * time.Second
 	httpTimeout          = 10 * time.Second
 )
 
@@ -43,7 +44,7 @@ type BZeroRegResponse struct {
 }
 
 // Attempts to register as many times as is acceptable
-func Register(log log.T) (BZeroRegResponse, error) {
+func Register(log log.T, retry bool) (BZeroRegResponse, error) {
 	// Get Registration Information
 	reg, err := grabRegInfo()
 	if err != nil {
@@ -58,8 +59,9 @@ func Register(log log.T) (BZeroRegResponse, error) {
 	if err == nil {
 		log.Infof("Successfully Registered Agent on First Attempt!")
 		return resp, nil
-	} else {
-		log.Errorf("Got error on first attempt registering API: %v", err)
+	} else if !retry {
+		rerr := fmt.Errorf("Unsuccessful on first try BZero registration, will try again on startup.")
+		return BZeroRegResponse{}, rerr
 	}
 
 	// Trying to re-register if first time fails
@@ -104,17 +106,6 @@ func grabRegInfo() (BZeroRegInfo, error) {
 
 // Hit BZero Registration API to attempt to register
 func callRegAPI(reg BZeroRegInfo, log log.T) (BZeroRegResponse, error) {
-	// ctx, cancel := context.WithTimeout(context.TODO(), httpTimeout)
-	// defer cancel()
-
-	// This is going to give us timeouts on everything
-	// Our service is down? Timeout.
-	// var netTransport = &http.Transport{
-	// 	Dial: (&net.Dialer{
-	// 		Timeout: httpTimeout,
-	// 	}).Dial,
-	// }
-
 	client := &http.Client{
 		Timeout: httpTimeout,
 	}
@@ -133,11 +124,8 @@ func callRegAPI(reg BZeroRegInfo, log log.T) (BZeroRegResponse, error) {
 		return BZeroRegResponse{}, fmt.Errorf("Error creating new http request: %v", err)
 	}
 
-	// Add context to request so we can cancel requests after timeout
-	// req = req.WithContext(ctx)
-
 	// Headers
-	req.Header.Add("Accept", "text/plain")
+	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
 	// Make request
@@ -154,9 +142,42 @@ func callRegAPI(reg BZeroRegInfo, log log.T) (BZeroRegResponse, error) {
 		return BZeroRegResponse{}, fmt.Errorf("Error reading http POST response bytes: %v", err)
 	}
 
+	if strings.Contains(string(respBytes), "<html>") {
+		return BZeroRegResponse{}, fmt.Errorf("Got error in response:\n%v", string(respBytes))
+	}
+
 	// Unmarshal response into struct
 	var response BZeroRegResponse
-	json.Unmarshal(respBytes, &response)
+	if err := json.Unmarshal(respBytes, &response); err != nil {
+		return BZeroRegResponse{}, fmt.Errorf("Error unmarshalling registration API response: %v", string(respBytes))
+	} else if fields, ok := missingResponseFields(response); !ok {
+		return BZeroRegResponse{}, fmt.Errorf("Missing fields in registration API response: %v", fields)
+	}
 
 	return response, nil
+}
+
+func missingResponseFields(resp BZeroRegResponse) ([]string, bool) {
+	// Print out a specific message if missing registration data
+	missing := []string{}
+	if resp.ActivationId == "" {
+		missing = append(missing, "Activation ID")
+	}
+	if resp.ActivationCode == "" {
+		missing = append(missing, "Activation Code")
+	}
+	if resp.ActivationRegion == "" {
+		missing = append(missing, "Activation Region")
+	}
+	if resp.SSMTargetId == "" {
+		missing = append(missing, "SSM Target ID")
+	}
+	if resp.OrgID == "" {
+		missing = append(missing, "Organization ID")
+	}
+	if resp.OrgProvider == "" {
+		missing = append(missing, "Organization Provider")
+	}
+
+	return missing, len(missing) == 0
 }

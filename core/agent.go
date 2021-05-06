@@ -28,6 +28,7 @@ import (
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	bzeroreg "github.com/aws/amazon-ssm-agent/agent/bzero/registration"
+	"github.com/aws/amazon-ssm-agent/agent/log"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/registration"
 	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
@@ -61,28 +62,10 @@ var (
 func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	log.WriteEvent(logger.AgentTelemetryMessage, "", logger.AmazonAgentStartEvent)
 
-	// Check if there is an activation code to see if we've already registered
-	if force && registration.InstanceID() == "" {
-		log.Infof("Agent is not Registered with BZero.  Attempting to register now...")
-
-		if resp, err := bzeroreg.Register(log); err != nil {
-			log.Infof("Error during BZero Registration; Exiting")
-			return nil, log, err
-
-		} else {
-			log.Infof("Agent Registered.  Activating Agent.")
-
-			if err := activateAgent(resp, log); err != nil {
-				rerr := fmt.Errorf("Error Activating Agent: %v", err)
-				log.Errorf(rerr.Error())
-				return nil, log, err
-
-			} else {
-				log.Infof("Sucessfully Activated Agent")
-			}
-		}
-	} else {
-		log.Infof("Agent is Registered with BZero. Startup will continue normally.")
+	if err := checkAndRegister(log, true); err != nil {
+		log.Errorf(err.Error())
+		log.Infof("Error during BZero Registration; Exiting")
+		return nil, log, err
 	}
 
 	bs := bootstrap.NewBootstrap(log, filesystem.NewFileSystem())
@@ -94,7 +77,7 @@ func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	context = context.With("[bzero-ssm-agent]")
 	message := messagebus.NewMessageBus(context)
 	if err := message.Start(); err != nil {
-		return nil, log, fmt.Errorf("failed to start message bus, %s", err)
+		return nil, log, fmt.Errorf("Failed to start message bus, %s", err)
 	}
 
 	ssmAgentCore := app.NewSSMCoreAgent(context, message)
@@ -103,9 +86,37 @@ func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	return ssmAgentCore, context.Log(), nil
 }
 
+func checkAndRegister(log log.T, retry bool) error {
+	// Check if there is an activation code to see if we've already registered
+	// force variable is only relevant if we're calling this from command line
+	// it allows us to overwrite an existing registration.
+	if registration.InstanceID() == "" || force {
+		if !hasRegistrationInfo() {
+			return fmt.Errorf("This Agent does not have the required BZero registration information in order to register.")
+		}
+
+		log.Infof("Agent is not Registered with BZero.  Attempting to register now...")
+		if resp, err := bzeroreg.Register(log, retry); err != nil {
+			return err
+		} else {
+			log.Infof("Agent is now Registered with BZero.  Activating Agent...")
+			// Try to activate agent (which includes the standard aws registration + bzero config setup)
+			if err := activateAgent(resp, log); err != nil {
+				return fmt.Errorf("Error Activating Agent: %v", err)
+			} else {
+				log.Infof("Sucessfully Activated Agent")
+				return nil
+			}
+		}
+	} else {
+		log.Infof("Agent is registered with BZero.")
+		return nil
+	}
+}
+
 // Check for registration information
-func isRegistered() bool {
-	if awsRegFile, err := vault.Retrieve(registrationFile); err != nil || awsRegFile == nil {
+func hasRegistrationInfo() bool {
+	if awsRegFile, err := vault.Retrieve(bzeroreg.BZeroRegStorage); err != nil || awsRegFile == nil {
 		return false
 	} else {
 		return true
@@ -121,20 +132,23 @@ func activateAgent(resp bzeroreg.BZeroRegResponse, log logger.T) error {
 	orgID = resp.OrgID
 	orgProvider = resp.OrgProvider
 
-	log.Info(activationCode, activationID, region)
+	if registration.InstanceID() != "" {
+		clearRegistration(log)
+	}
 
 	if code := processRegistration(log); code != 0 {
 		return fmt.Errorf("Error Processing Standard Registration")
 	}
 
-	log.Infof("Successfully Processed Standard Registration")
-
 	if code := bzeroInit(log); code != 0 {
 		return fmt.Errorf("Error while Initializing Bzero Variables")
-	} else {
-		log.Infof("Sucessfully Initialized and Stored BZero Config!")
-		return nil
 	}
+
+	if err := vault.Remove(bzeroreg.BZeroRegStorage); err != nil {
+		return fmt.Errorf("Error Deleting BZero Registration Data: %v", err)
+	}
+
+	return nil
 }
 
 func blockUntilSignaled(log logger.T) {
@@ -160,7 +174,7 @@ func run(log logger.T) {
 		// recover in case the agent panics
 		// this should handle some kind of seg fault errors.
 		if msg := recover(); msg != nil {
-			log.Errorf("core Agent crashed with message %v!", msg)
+			log.Errorf("Core Agent crashed with message %v!", msg)
 			log.Errorf("%s: %s", msg, debug.Stack())
 		}
 	}()
@@ -168,7 +182,7 @@ func run(log logger.T) {
 	// run ssm agent
 	coreAgent, contextLog, err := start(log)
 	if err != nil {
-		contextLog.Errorf("error occurred when starting bzero-ssm-agent: %v", err)
+		contextLog.Errorf("Error occurred when starting bzero-ssm-agent: %v", err)
 		return
 	}
 	blockUntilSignaled(contextLog)
