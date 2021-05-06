@@ -103,7 +103,7 @@ func printBZeroPubKey() {
 }
 
 func printBZeroInfo(info string) {
-	fmt.Printf("%s\n", info)
+	fmt.Printf("[BZeroAgentInfo]%s\n", info)
 }
 
 func bzeroInit(log logger.T) (exitCode int) {

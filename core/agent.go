@@ -63,8 +63,6 @@ func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	log.WriteEvent(logger.AgentTelemetryMessage, "", logger.AmazonAgentStartEvent)
 
 	if err := checkAndRegister(log, true); err != nil {
-		log.Errorf(err.Error())
-		log.Infof("Error during BZero Registration; Exiting")
 		return nil, log, err
 	}
 
