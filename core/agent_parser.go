@@ -82,16 +82,16 @@ func printBZeroPubKey() {
 
 	config, err := vault.Retrieve(bzeroreg.BZeroConfigStorage)
 	if err != nil {
-		fmt.Printf("[BZero Registration] Error Retrieving BZero Config: %v", err)
+		fmt.Printf("Error Retrieving BZero Config: %v", err)
 		os.Exit(bzeroreg.BZeroRegErrorExitCode)
 	} else if config == nil {
-		fmt.Printf("[BZero Registration] BZero Config File is Empty!")
+		fmt.Printf("BZero Config File is Empty!")
 		os.Exit(bzeroreg.BZeroRegErrorExitCode)
 	}
 
 	// Unmarshal the retrieved data
 	if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
-		fmt.Printf("[BZero Registration] Error Retrieving BZero Config: %v", err)
+		fmt.Printf("Error Retrieving BZero Config: %v", err)
 		os.Exit(1)
 	}
 
@@ -99,7 +99,7 @@ func printBZeroPubKey() {
 }
 
 func printBZeroInfo(info string) {
-	fmt.Printf("[BZeroAgentInfo] %s\n", info)
+	fmt.Printf("%s\n", info)
 }
 
 func bzeroInit(log logger.T) (exitCode int) {
@@ -112,7 +112,7 @@ func bzeroInit(log logger.T) (exitCode int) {
 
 	// Catch any errors that might have been generated
 	if err != nil {
-		log.Errorf("[BZero Registration] Key Generation Failed: %v", err)
+		log.Errorf("BZero Key Generation Failed: %v", err)
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
@@ -128,17 +128,45 @@ func bzeroInit(log logger.T) (exitCode int) {
 	}
 	data, err := json.Marshal(keys)
 	if err != nil {
-		log.Errorf("[BZero Registration] Marshalling Keys Failed: %v", err)
+		log.Errorf("Marshalling BZero Keys Failed: %v", err)
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
 	if err = vault.Store(bzeroreg.BZeroConfigStorage, data); err != nil {
-		log.Errorf("[BZero Registration] Storing Bzero Config Failed: %v", err)
+		log.Errorf("Storing Bzero Config Failed: %v", err)
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
-	log.Info("[BZero Registration] Successfully Created and Stored BZero Config!")
+	log.Info("Successfully Created and Stored BZero Config!")
 	return 0
+}
+
+// Used for checking that all required fields are present
+func missingBZeroFields(reg bzeroreg.BZeroRegInfo) bool {
+	// Print out a specific message if missing registration data
+	missing := []string{}
+	if reg.RegID == "" {
+		missing = append(missing, "Registration ID")
+	}
+	if reg.RegSecret == "" {
+		missing = append(missing, "Registration Secret")
+	}
+	if reg.TargetName == "" {
+		missing = append(missing, "Target Name")
+	}
+	if reg.EnvID == "" {
+		missing = append(missing, "Environment ID")
+	}
+	if reg.APIUrl == "" {
+		missing = append(missing, "Registration API URL")
+	}
+
+	if len(missing) != 0 {
+		fmt.Printf("BZero Registration Information Missing Required field(s): %s", strings.Join(missing, ", "))
+		return true
+	} else {
+		return false
+	}
 }
 
 func processBZeroRegistration(log logger.T) (exitCode int) {
@@ -148,23 +176,28 @@ func processBZeroRegistration(log logger.T) (exitCode int) {
 	// control the variable names and only store the things that we'll know what to do with.
 	// Also, this way we can catch if the data in malformed or was incorrectly generated asap
 	if err := json.Unmarshal([]byte(bzero), &regInfo); err != nil {
-		log.Errorf("[BZero Registration] Malformed BZero Registration Info, Could Not Unmarshal Data")
+		log.Errorf("Malformed BZero Registration Info, Could Not Unmarshal Data")
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
 	// check if all required fields present
-	if !checkMissingBZeroFields(regInfo) {
+	if missingBZeroFields(regInfo) {
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
 	data, _ := json.Marshal(regInfo)
 
 	if err := vault.Store(bzeroreg.BZeroRegStorage, data); err != nil {
-		log.Errorf("[BZero Registration] BZero Storing of Registration Information Failed: %v", err)
+		log.Errorf("BZero Storing of Registration Information Failed: %v", err)
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
-	log.Infof("[BZero Registration] Successfully Stored BZero Registration Data")
+	log.Infof("Successfully Stored BZero Registration Data")
+
+	// Try to register just in case it works and then the agent can start more smoothely on the first try
+	// We don't care if there's an error here, because it's a bonus action and not core to the registration
+	// process
+	checkAndRegister(log, false)
 
 	return 0
 }
@@ -212,34 +245,6 @@ func flagUsage() {
 	fmt.Fprintln(os.Stderr, "\t-fingerprint\tWhether to update the machine fingerprint similarity threshold\t(OPTIONAL)")
 	fmt.Fprintln(os.Stderr, "\t\t-similarityThreshold\tThe new required percentage of matching hardware values\t(OPTIONAL)")
 	fmt.Fprintln(os.Stderr, "\n\t-y\tAnswer yes for all questions")
-}
-
-// Used for checking that all required fields are present
-func checkMissingBZeroFields(reg bzeroreg.BZeroRegInfo) bool {
-	// Print out a specific message if missing registration data
-	missing := []string{}
-	if reg.RegID == "" {
-		missing = append(missing, "Registration ID")
-	}
-	if reg.RegSecret == "" {
-		missing = append(missing, "Registration Secret")
-	}
-	if reg.TargetName == "" {
-		missing = append(missing, "Target Name")
-	}
-	if reg.EnvID == "" {
-		missing = append(missing, "Environment ID")
-	}
-	if reg.APIUrl == "" {
-		missing = append(missing, "Registration API URL")
-	}
-
-	if len(missing) != 0 {
-		fmt.Printf("[BZero Registration] Missing Required field(s): %s", strings.Join(missing, ", "))
-		return false
-	} else {
-		return true
-	}
 }
 
 // processRegistration handles flags related to the registration category
@@ -316,7 +321,6 @@ func registerManagedInstance(log logger.T) (managedInstanceID string, err error)
 		keyType,
 		fingerprint,
 	)
-
 	if err != nil {
 		return managedInstanceID, fmt.Errorf("error registering the instance with AWS SSM. %v", err)
 	}
