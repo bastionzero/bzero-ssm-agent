@@ -60,7 +60,7 @@ func Register(log log.T, retry bool) (BZeroRegResponse, error) {
 		log.Infof("Successfully Registered Agent on First Attempt!")
 		return resp, nil
 	} else if !retry {
-		rerr := fmt.Errorf("Unsuccessful on first try BZero registration, will try again on startup.")
+		rerr := fmt.Errorf("Unsuccessfully tried to register with BZero, but will try again on startup.")
 		return BZeroRegResponse{}, rerr
 	}
 
