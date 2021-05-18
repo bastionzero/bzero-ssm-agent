@@ -141,34 +141,6 @@ func bzeroInit(log logger.T) (exitCode int) {
 	return 0
 }
 
-// Used for checking that all required fields are present
-func missingBZeroFields(reg bzeroreg.BZeroRegInfo) bool {
-	// Print out a specific message if missing registration data
-	missing := []string{}
-	if reg.RegID == "" {
-		missing = append(missing, "Registration ID")
-	}
-	if reg.RegSecret == "" {
-		missing = append(missing, "Registration Secret")
-	}
-	if reg.TargetName == "" {
-		missing = append(missing, "Target Name")
-	}
-	if reg.EnvID == "" {
-		missing = append(missing, "Environment ID")
-	}
-	if reg.APIUrl == "" {
-		missing = append(missing, "Registration API URL")
-	}
-
-	if len(missing) != 0 {
-		fmt.Printf("BZero Registration Information Missing Required field(s): %s", strings.Join(missing, ", "))
-		return true
-	} else {
-		return false
-	}
-}
-
 func processBZeroRegistration(log logger.T) (exitCode int) {
 	var regInfo bzeroreg.BZeroRegInfo
 
@@ -181,7 +153,7 @@ func processBZeroRegistration(log logger.T) (exitCode int) {
 	}
 
 	// check if all required fields present
-	if missingBZeroFields(regInfo) {
+	if bzeroreg.MissingBZeroRegFields(regInfo) {
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
@@ -211,6 +183,7 @@ func handleRegistrationAndFingerprintFlags(log logger.T) {
 				exitCode = processBZeroRegistration(log)
 			} else {
 				exitCode = processRegistration(log)
+				exitCode = bzeroInit(log)
 			}
 		} else if fpFlag {
 			exitCode = processFingerprint(log)

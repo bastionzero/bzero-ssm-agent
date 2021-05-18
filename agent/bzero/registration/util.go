@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -21,7 +22,8 @@ const (
 	// Purely internal
 	maxRegistrationRetry = 2
 	retrySleep           = 10 * time.Second
-	httpTimeout          = 10 * time.Second
+	httpTimeout          = 20 * time.Second
+	maxRetryWait         = 30
 )
 
 // Struct to allow for backwards/forwards compatability in registration flow
@@ -67,8 +69,12 @@ func Register(log log.T, retry bool) (BZeroRegResponse, error) {
 	// Trying to re-register if first time fails
 	count := 0
 	for count <= maxRegistrationRetry && err != nil {
-		time.Sleep(retrySleep)
+		// exponential backoff limited by # retries
+		backoff := time.Duration(2 ^ count + rand.Intn(maxRetryWait))
+		time.Sleep(backoff * time.Second)
+
 		resp, err = callRegAPI(reg, log)
+
 		count += 1
 	}
 
@@ -180,4 +186,32 @@ func missingResponseFields(resp BZeroRegResponse) ([]string, bool) {
 	}
 
 	return missing, len(missing) == 0
+}
+
+// Used for checking that all required fields are present
+func MissingBZeroRegFields(reg BZeroRegInfo) bool {
+	// Print out a specific message if missing registration data
+	missing := []string{}
+	if reg.RegID == "" {
+		missing = append(missing, "Registration ID")
+	}
+	if reg.RegSecret == "" {
+		missing = append(missing, "Registration Secret")
+	}
+	if reg.TargetName == "" {
+		missing = append(missing, "Target Name")
+	}
+	if reg.EnvID == "" {
+		missing = append(missing, "Environment ID")
+	}
+	if reg.APIUrl == "" {
+		missing = append(missing, "Registration API URL")
+	}
+
+	if len(missing) != 0 {
+		fmt.Printf("BZero Registration Information Missing Required field(s): %s", strings.Join(missing, ", "))
+		return true
+	} else {
+		return false
+	}
 }
