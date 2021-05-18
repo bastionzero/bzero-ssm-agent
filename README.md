@@ -40,6 +40,10 @@ SSM Agent also enables the Session Manager capability that lets you manage your 
 
 Thank you for helping us to improve Systems Manager, Run Command and Session Manager. Please send your questions or comments to [Systems Manager Forums](https://forums.aws.amazon.com/forum.jspa?forumID=185&start=0)
 
+## Building
+
+Please note: The SSM agent does not support go modules yet (the preferred way to manage dependencies). If using `go 1.16` or above, you have to set `export GO111MODULE=off` before running any of the `go` commands in the repo.
+
 ### Building inside docker container (Recommended)
 * Install docker: [Install CentOS](https://docs.docker.com/engine/install/centos/)
 
