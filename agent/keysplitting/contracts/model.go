@@ -131,4 +131,5 @@ const (
 	ChannelClosed                KeysplittingErrorType = "ChannelClosed"
 	OutdatedHPointer             KeysplittingErrorType = "OutdatedHPointer"
 	BZECertExpiredInitialIdToken KeysplittingErrorType = "BZECertExpiredInitialIdToken"
+	HandlerNotReady              KeysplittingErrorType = "HandlerNotReady"
 )

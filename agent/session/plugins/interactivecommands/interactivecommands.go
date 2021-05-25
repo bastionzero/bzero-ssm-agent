@@ -193,7 +193,13 @@ func (p *InteractiveCommandsPlugin) forwardMessage(log log.T, streamDataMessage 
 			Payload:     []byte(payload.Payload), // a string for Output or a json {cols: x, rows: y} for Size
 			PayloadType: uint32(payloadtype),     // either Output or Size
 		}
-		return p.shell.InputStreamMessageHandler(log, agentMessage)
+
+		if p.shell.Ready() {
+			return p.shell.InputStreamMessageHandler(log, agentMessage)
+		} else {
+			message := "Shell not yet ready for incoming messages"
+			return p.ksHelper.BuildError(message, kysplContracts.HandlerNotReady)
+		}
 	} else {
 		message := fmt.Sprintf("[Keysplitting] Keysplitting Handshake is required to communicate with shell")
 		return p.ksHelper.BuildError(message, kysplContracts.ChannelClosed)

@@ -72,6 +72,11 @@ type logger struct {
 type IShellPlugin interface {
 	Execute(config agentContracts.Configuration, cancelFlag task.CancelFlag, output iohandler.IOHandler, dataChannel datachannel.IDataChannel, shellProps mgsContracts.ShellProperties)
 	InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error
+	Ready() bool
+}
+
+func (p *ShellPlugin) Ready() bool {
+	return !(p.stdin == nil || p.stdout == nil)
 }
 
 // NewPlugin returns a new instance of the Shell Plugin
