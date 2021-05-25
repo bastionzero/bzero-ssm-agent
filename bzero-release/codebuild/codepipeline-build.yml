@@ -19,7 +19,6 @@ phases:
       - git checkout $LatestTag
       - AgentVersion=$(echo $LatestTag | sed 's/bzero-//g' )
       - echo "Using AgentVersion $AgentVersion"
-      - echo $AgentVersion > VERSION
   build:
     commands:
       - echo Build started...

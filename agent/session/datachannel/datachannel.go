@@ -882,8 +882,8 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
 			payloadType := mgsContracts.PayloadType(streamDataMessage.PayloadType)
 			if payloadType == mgsContracts.Syn || payloadType == mgsContracts.Data {
-				if err, ok := err.(*kysplContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
-					dataChannel.SendKeysplittingMessage(log, err.Content)
+				if kserr, ok := err.(*kysplContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
+					dataChannel.SendKeysplittingMessage(log, kserr.Content)
 				} else { // If it's not of type KeysplittingError, it's wrong so build one and send it
 					dataChannel.SendKeysplittingMessage(log, keysplitting.BuildUnknownErrorPayload(err))
 				}
