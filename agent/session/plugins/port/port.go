@@ -54,7 +54,7 @@ type PortPlugin struct {
 	dataChannel        datachannel.IDataChannel
 	cancelled          chan struct{}
 	session            IPortSession
-	ksHelper           keysplitting.KeysplittingHelper
+	ksHelper           keysplitting.IKeysplittingHelper
 	sshOpenData        *kysplContracts.SshOpenActionPayload
 	authorizedKeyEntry string
 }

@@ -38,7 +38,7 @@ type InteractiveCommandsPlugin struct {
 	context     context.T
 	shell       shell.IShellPlugin
 	channelOpen bool
-	ksHelper    keysplitting.KeysplittingHelper
+	ksHelper    keysplitting.IKeysplittingHelper
 }
 
 // Returns parameters required for CLI/console to start session
