@@ -23,6 +23,7 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler"
 	iohandlermocks "github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler/mock"
+	ksMock "github.com/aws/amazon-ssm-agent/agent/keysplitting/mocks"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	dataChannelMock "github.com/aws/amazon-ssm-agent/agent/session/datachannel/mocks"
@@ -35,19 +36,21 @@ import (
 
 type InteractiveCommandsTestSuite struct {
 	suite.Suite
-	mockContext     *context.Mock
-	mockLog         log.T
-	mockCancelFlag  *task.MockCancelFlag
-	mockDataChannel *dataChannelMock.IDataChannel
-	mockIohandler   *iohandlermocks.MockIOHandler
-	plugin          *InteractiveCommandsPlugin
-	shellProps      interface{}
+	mockContext            *context.Mock
+	mockLog                log.T
+	mockCancelFlag         *task.MockCancelFlag
+	mockDataChannel        *dataChannelMock.IDataChannel
+	mockIohandler          *iohandlermocks.MockIOHandler
+	mockKeySplittingHelper *ksMock.IKeysplittingHelper
+	plugin                 *InteractiveCommandsPlugin
+	shellProps             interface{}
 }
 
 func (suite *InteractiveCommandsTestSuite) SetupTest() {
 	mockContext := context.NewMockDefault()
 	mockCancelFlag := &task.MockCancelFlag{}
 	mockDataChannel := &dataChannelMock.IDataChannel{}
+	mockKeySplittingHelper := &ksMock.IKeysplittingHelper{}
 	mockIohandler := new(iohandlermocks.MockIOHandler)
 	mockLog := log.NewMockLog()
 
@@ -70,6 +73,7 @@ func (suite *InteractiveCommandsTestSuite) SetupTest() {
 	suite.mockLog = mockLog
 	suite.mockCancelFlag = mockCancelFlag
 	suite.mockDataChannel = mockDataChannel
+	suite.mockKeySplittingHelper = mockKeySplittingHelper
 	suite.mockIohandler = mockIohandler
 	suite.plugin = &InteractiveCommandsPlugin{
 		context: suite.mockContext,
@@ -164,8 +168,9 @@ func (suite *InteractiveCommandsTestSuite) TestExecuteWithoutCommands() {
 // Testing InputStreamMessageHandler base case.
 func (suite *InteractiveCommandsTestSuite) TestInputStreamMessageHandler() {
 	mockShellPlugin := new(shell.IShellPluginMock)
-	mockShellPlugin.On("InputStreamMessageHandler", suite.mockLog, mock.Anything).Return(nil)
 	suite.plugin.shell = mockShellPlugin
+	suite.mockKeySplittingHelper.On("BuildError", mock.Anything, mock.Anything).Return(nil)
+	suite.plugin.ksHelper = suite.mockKeySplittingHelper
 
 	err := suite.plugin.InputStreamMessageHandler(suite.mockLog, mgsContracts.AgentMessage{})
 

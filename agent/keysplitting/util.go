@@ -34,6 +34,24 @@ const (
 	bzecertLifetime                  = time.Hour * 24 * 365 * 5 // 5 years
 )
 
+type IKeysplittingHelper interface {
+	ProcessSyn(payload []byte) error
+	ValidateDataMessage(datapayload kysplContracts.DataPayload) error
+	GetNonce() string
+	Hash(a interface{}) (string, error)
+	HashStruct(payload interface{}) (string, error)
+	VerifyBZECert(cert kysplContracts.BZECert) error
+	UpdateHPointer(rawpayload interface{}) error
+	BuildError(message string, errortype kysplContracts.KeysplittingErrorType) error
+	BuildSynAck(nonce string, synpayload kysplContracts.SynPayload) error
+	BuildDataAck(datapayload kysplContracts.DataPayload) error
+	CheckBZECert(certHash string) error
+	VerifyHPointer(newPointer string) error
+	VerifyTargetId(targetid string) error
+	VerifySignature(payload interface{}, sig string, bzehash string) error
+	SignPayload(payload interface{}) (string, error)
+}
+
 type KeysplittingHelper struct {
 	log log.T
 
@@ -51,23 +69,23 @@ type KeysplittingHelper struct {
 	bzeCerts         map[string]map[string]interface{}
 }
 
-func Init(log log.T) (KeysplittingHelper, error) {
+func Init(log log.T) (IKeysplittingHelper, error) {
 	// grab values stored on Registration from Vault
 	bzeroConfig := map[string]string{}
 
 	config, err := vault.Retrieve(BZeroConfig)
 	if err != nil {
-		return KeysplittingHelper{}, fmt.Errorf("[Keysplitting] Error retreiving BZero config: %v", err)
+		return &KeysplittingHelper{}, fmt.Errorf("[Keysplitting] Error retreiving BZero config: %v", err)
 	} else if config == nil {
-		return KeysplittingHelper{}, fmt.Errorf("[Keysplitting] BZero Config file is empty!")
+		return &KeysplittingHelper{}, fmt.Errorf("[Keysplitting] BZero Config file is empty!")
 	}
 
 	// Unmarshal the retrieved data
 	if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
-		return KeysplittingHelper{}, fmt.Errorf("[Keysplitting] Error retreiving BZero config: %v", err)
+		return &KeysplittingHelper{}, fmt.Errorf("[Keysplitting] Error retreiving BZero config: %v", err)
 	}
 
-	var helper = KeysplittingHelper{
+	var helper = &KeysplittingHelper{
 		log:          log,
 		publicKey:    bzeroConfig["PublicKey"],
 		privateKey:   bzeroConfig["PrivateKey"],
