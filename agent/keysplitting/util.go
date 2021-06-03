@@ -450,6 +450,10 @@ func (k *KeysplittingHelper) BuildError(message string, errortype kysplContracts
 		Signature: "",
 	}
 
+	// Update expectedHPointer aka the hpointer in the next received message to be H(Error)
+	k.ExpectedHPointer, _ = k.HashStruct(content)
+	k.HPointer = k.ExpectedHPointer
+
 	return &kysplContracts.KeysplittingError{
 		Err:     errors.New("ERROR"),
 		Content: errorContent,
@@ -480,6 +484,7 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload kysplContracts
 
 	// Update expectedHPointer aka the hpointer in the next received message to be H(SYNACK)
 	k.ExpectedHPointer, _ = k.HashStruct(contentPayload)
+	k.HPointer = k.ExpectedHPointer
 
 	return &kysplContracts.KeysplittingError{
 		Err:     errors.New("SYNACK"),
@@ -509,6 +514,7 @@ func (k *KeysplittingHelper) BuildDataAck(datapayload kysplContracts.DataPayload
 
 	// Update expectedHPointer aka the hpointer in the next received message to be H(DATAACK)
 	k.ExpectedHPointer, _ = k.HashStruct(contentPayload)
+	k.HPointer = k.ExpectedHPointer
 
 	return &kysplContracts.KeysplittingError{
 		Err:     errors.New("DATAACK"),
