@@ -193,12 +193,12 @@ func (k *KeysplittingHelper) ValidateDataMessage(datapayload kysplContracts.Data
 // If this is the beginning of the hash chain, then we create a nonce with a random value,
 // otherwise we use the hash of the previous value to maintain the hash chain and immutability
 func (k *KeysplittingHelper) GetNonce() string {
-	if k.HPointer == "" {
+	if k.ExpectedHPointer == "" {
 		b := make([]byte, 32) // 32-length byte array, to make it same length as hash pointer
 		rand.Read(b)          // populate with random bytes
 		return base64.StdEncoding.EncodeToString(b)
 	} else {
-		return k.HPointer
+		return k.ExpectedHPointer
 	}
 }
 
@@ -480,7 +480,6 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload kysplContracts
 
 	// Update expectedHPointer aka the hpointer in the next received message to be H(SYNACK)
 	k.ExpectedHPointer, _ = k.HashStruct(contentPayload)
-	k.HPointer = k.ExpectedHPointer
 
 	return &kysplContracts.KeysplittingError{
 		Err:     errors.New("SYNACK"),
@@ -510,7 +509,6 @@ func (k *KeysplittingHelper) BuildDataAck(datapayload kysplContracts.DataPayload
 
 	// Update expectedHPointer aka the hpointer in the next received message to be H(DATAACK)
 	k.ExpectedHPointer, _ = k.HashStruct(contentPayload)
-	k.HPointer = k.ExpectedHPointer
 
 	return &kysplContracts.KeysplittingError{
 		Err:     errors.New("DATAACK"),
