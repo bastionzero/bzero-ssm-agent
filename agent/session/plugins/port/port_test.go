@@ -23,6 +23,7 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
 	iohandlermocks "github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler/mock"
+	ksMock "github.com/aws/amazon-ssm-agent/agent/keysplitting/mocks"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	dataChannelMock "github.com/aws/amazon-ssm-agent/agent/session/datachannel/mocks"
@@ -47,13 +48,14 @@ var (
 
 type PortTestSuite struct {
 	suite.Suite
-	mockContext     *context.Mock
-	mockLog         log.T
-	mockCancelFlag  *task.MockCancelFlag
-	mockDataChannel *dataChannelMock.IDataChannel
-	mockIohandler   *iohandlermocks.MockIOHandler
-	mockPortSession *portSessionMock.IPortSession
-	plugin          *PortPlugin
+	mockContext            *context.Mock
+	mockLog                log.T
+	mockCancelFlag         *task.MockCancelFlag
+	mockDataChannel        *dataChannelMock.IDataChannel
+	mockIohandler          *iohandlermocks.MockIOHandler
+	mockPortSession        *portSessionMock.IPortSession
+	mockKeySplittingHelper *ksMock.IKeysplittingHelper
+	plugin                 *PortPlugin
 }
 
 // Testing initializeParameters
@@ -108,6 +110,7 @@ func (suite *PortTestSuite) SetupTest() {
 	mockDataChannel := &dataChannelMock.IDataChannel{}
 	mockIohandler := new(iohandlermocks.MockIOHandler)
 	mockPortSession := &portSessionMock.IPortSession{}
+	mockKeySplittingHelper := &ksMock.IKeysplittingHelper{}
 
 	suite.mockContext = mockContext
 	suite.mockCancelFlag = mockCancelFlag
@@ -115,6 +118,8 @@ func (suite *PortTestSuite) SetupTest() {
 	suite.mockDataChannel = mockDataChannel
 	suite.mockIohandler = mockIohandler
 	suite.mockPortSession = mockPortSession
+	suite.mockKeySplittingHelper = mockKeySplittingHelper
+
 	suite.plugin = &PortPlugin{
 		context:     mockContext,
 		dataChannel: mockDataChannel,
@@ -233,20 +238,29 @@ func (suite *PortTestSuite) TestExecute() {
 // Testing InputStreamHandler
 func (suite *PortTestSuite) TestInputStreamHandler() {
 	suite.plugin.session = suite.mockPortSession
-	suite.mockPortSession.On("HandleStreamMessage", getAgentMessage(uint32(mgsContracts.Output), payload)).Return(nil)
+	suite.plugin.ksHelper = suite.mockKeySplittingHelper
+
+	suite.mockKeySplittingHelper.On("BuildError", mock.Anything, mock.Anything).Return(nil)
 	suite.mockPortSession.On("IsConnectionAvailable").Return(true)
+
 	suite.plugin.InputStreamMessageHandler(suite.mockLog, getAgentMessage(uint32(mgsContracts.Output), payload))
 	suite.mockPortSession.AssertExpectations(suite.T())
 }
 
 func (suite *PortTestSuite) TestInputStreamHandlerSessionNotReady() {
+	suite.plugin.ksHelper = suite.mockKeySplittingHelper
+	suite.mockKeySplittingHelper.On("BuildError", mock.Anything, mock.Anything).Return(nil)
 	suite.plugin.InputStreamMessageHandler(suite.mockLog, getAgentMessage(uint32(mgsContracts.Output), payload))
 	suite.mockPortSession.AssertExpectations(suite.T())
 }
 
 func (suite *PortTestSuite) TestInputStreamHandlerConnectionNotReady() {
 	suite.plugin.session = suite.mockPortSession
+	suite.plugin.ksHelper = suite.mockKeySplittingHelper
+
+	suite.mockKeySplittingHelper.On("BuildError", mock.Anything, mock.Anything).Return(nil)
 	suite.mockPortSession.On("IsConnectionAvailable").Return(false)
+
 	suite.plugin.InputStreamMessageHandler(suite.mockLog, getAgentMessage(uint32(mgsContracts.Output), payload))
 	suite.mockPortSession.AssertExpectations(suite.T())
 }
