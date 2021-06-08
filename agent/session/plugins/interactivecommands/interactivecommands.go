@@ -15,7 +15,6 @@
 package interactivecommands
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
@@ -122,38 +121,33 @@ func (p *InteractiveCommandsPlugin) InputStreamMessageHandler(log log.T, streamD
 	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
 
 	case mgsContracts.Syn:
-		log.Infof("[Keysplitting] Syn Payload Received: %v", string(streamDataMessage.Payload))
 		return p.ksHelper.ProcessSyn(streamDataMessage.Payload)
 
 	case mgsContracts.Data:
-		log.Infof("[Keysplitting] Data Payload Received: %v", string(streamDataMessage.Payload))
+		// Process actions
+		if datapayload, err := p.ksHelper.ValidateDataMessage(streamDataMessage.Payload); err == nil {
 
-		var datapayload kysplContracts.DataPayload
-
-		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
-			message := fmt.Sprintf("Error occurred while parsing DataPayload json: %v", err)
-			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
-		}
-		log.Infof("[Keysplitting] Data Payload Unmarshalled...")
-
-		if err := p.ksHelper.ValidateDataMessage(datapayload); err == nil {
 			switch kysplContracts.KeysplittingAction(datapayload.Payload.Action) {
 
 			case kysplContracts.ShellOpen:
 				p.channelOpen = true
 				log.Infof("[Keysplitting] shell/open Action Completed")
+
 			case kysplContracts.ShellClose:
 				p.channelOpen = false
 				log.Infof("[Keysplitting] shell/close Action Completed")
+
 			case kysplContracts.ShellInput:
 				if err := p.forwardMessage(log, streamDataMessage, mgsContracts.Output, datapayload.Payload); err != nil {
 					return err
 				}
+
 			case kysplContracts.ShellResize:
 				if err := p.forwardMessage(log, streamDataMessage, mgsContracts.Size, datapayload.Payload); err != nil {
 					return err
 				}
 				log.Infof("[Keysplitting] shell/resize Action Completed")
+
 			default:
 				message := fmt.Sprintf("Keysplitting Action Not Recognized: %v", datapayload.Payload.Action)
 				return p.ksHelper.BuildError(message, kysplContracts.KeysplittingActionError)

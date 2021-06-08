@@ -36,7 +36,7 @@ const (
 
 type IKeysplittingHelper interface {
 	ProcessSyn(payload []byte) error
-	ValidateDataMessage(datapayload kysplContracts.DataPayload) error
+	ValidateDataMessage(payload []byte) (kysplContracts.DataPayload, error)
 	GetNonce() string
 	Hash(a interface{}) (string, error)
 	HashStruct(payload interface{}) (string, error)
@@ -117,10 +117,10 @@ func getMicrosoftIssuerUrl(orgId string) string {
 func (k *KeysplittingHelper) ProcessSyn(payload []byte) error {
 	var synpayload kysplContracts.SynPayload
 
+	k.log.Infof("[Keysplitting] Syn Payload Received: %v", string(payload))
 	if err := json.Unmarshal(payload, &synpayload); err != nil {
-		// not a keysplitting error, also we can't possibly have the hpointer so it wouldn't be possible to associate the error with the correct message
+		// Error will associate message with hash of previous message since it hasn't been updated yet
 		message := fmt.Sprintf("Error occurred while parsing SynPayload json: %v", err)
-		// Is it icky that anyone can send a Syn or Data payload and get back the current state of the hpointer? Am I overreacting? -lucie
 		return k.BuildError(message, kysplContracts.InvalidPayload)
 	}
 	k.log.Infof("[Keysplitting] Syn Payload Unmarshalled")
@@ -157,37 +157,45 @@ func (k *KeysplittingHelper) ProcessSyn(payload []byte) error {
 	return k.BuildSynAck(nonce, synpayload)
 }
 
-func (k *KeysplittingHelper) ValidateDataMessage(datapayload kysplContracts.DataPayload) error {
+func (k *KeysplittingHelper) ValidateDataMessage(payload []byte) (kysplContracts.DataPayload, error) {
+	var datapayload kysplContracts.DataPayload
+
+	k.log.Infof("[Keysplitting] Data Payload Received: %v", string(payload))
+	if err := json.Unmarshal(payload, &datapayload); err != nil {
+		message := fmt.Sprintf("[Keysplitting] Error occurred while parsing DataPayload json: %v", err)
+		return kysplContracts.DataPayload{}, k.BuildError(message, kysplContracts.InvalidPayload)
+	}
+	k.log.Infof("[Keysplitting] Data Payload Unmarshalled...")
+
 	// Update hpointer, needs to be done asap for error reporting purposes
 	if err := k.UpdateHPointer(datapayload.Payload); err != nil {
-		return err
+		return kysplContracts.DataPayload{}, err
 	}
 
 	// Make sure BZECert hash matches existing hash
-	// In the future we should be getting a hash here that we can easily lookup in the map
 	if err := k.CheckBZECert(datapayload.Payload.BZECert); err != nil {
-		return err
+		return kysplContracts.DataPayload{}, err
 	}
 	k.log.Infof("[Keysplitting] BZE Certificate Validated")
 
 	// Verify client signature
 	if err := k.VerifySignature(datapayload.Payload, datapayload.Signature, datapayload.Payload.BZECert); err != nil {
-		return err
+		return kysplContracts.DataPayload{}, err
 	}
 	k.log.Infof("[Keysplitting] Client Signature on Data Message Verified")
 
 	// Validate hash pointer
 	if err := k.VerifyHPointer(datapayload.Payload.HPointer); err != nil {
-		return err
+		return kysplContracts.DataPayload{}, err
 	}
 
 	// Validate that TargetId == Hash(pubkey)
 	if err := k.VerifyTargetId(datapayload.Payload.TargetId); err != nil {
-		return err
+		return kysplContracts.DataPayload{}, err
 	}
 	k.log.Infof("[Keysplitting] TargetID from Data Message Verified")
 
-	return nil
+	return datapayload, nil
 }
 
 // If this is the beginning of the hash chain, then we create a nonce with a random value,
