@@ -67,6 +67,10 @@ func parseFlags() {
 	// Bzero Registration flag
 	flag.StringVar(&bzero, bzeroFlag, "", "")
 
+	// BZero Org flags
+	flag.StringVar(&orgID, orgIDFlag, "", "")
+	flag.StringVar(&orgProvider, orgProviderFlag, "", "")
+
 	flag.Parse()
 }
 
@@ -187,8 +191,8 @@ func handleRegistrationAndFingerprintFlags(log logger.T) {
 			if bzero != "" {
 				exitCode = processBZeroRegistration(log)
 			} else {
-				exitCode = processRegistration(log)
 				exitCode = bzeroInit(log)
+				exitCode = processRegistration(log)
 			}
 		} else if fpFlag {
 			exitCode = processFingerprint(log)

@@ -46,12 +46,16 @@ const (
 	versionFlag             = "version"
 	fingerprintFlag         = "fingerprint"
 	similarityThresholdFlag = "similarityThreshold"
-	bzeroInfoFlag           = "bzeroInfo"
-	bzeroFlag               = "bzero"
+
+	// BZero const
+	bzeroInfoFlag   = "bzeroInfo"
+	bzeroFlag       = "bzero"
+	orgIDFlag       = "org"
+	orgProviderFlag = "orgProvider"
 )
 
 var (
-	activationCode, activationID, region             string
+	activationCode, activationID, region             string // aws activation args
 	orgID, orgProvider, bzero                        string // bzero args
 	register, clear, force, fpFlag, agentVersionFlag bool
 	bzeroInfo                                        bool // bzero args
@@ -139,7 +143,7 @@ func activateAgent(resp bzeroreg.BZeroRegResponse, log logger.T) error {
 	}
 
 	if code := bzeroInit(log); code != 0 {
-		return fmt.Errorf("Error while Initializing Bzero Variables")
+		return fmt.Errorf("Error Initializing Bzero Variables")
 	}
 
 	if err := vault.Remove(bzeroreg.BZeroRegStorage); err != nil {
