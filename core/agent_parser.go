@@ -61,9 +61,11 @@ func parseFlags() {
 	flag.BoolVar(&bzeroInfo, bzeroInfoFlag, false, "")
 
 	// Bzero Registration flag
+	// This is a json formatted BZeroRegInfo object
 	flag.StringVar(&bzero, bzeroFlag, "", "")
 
 	// BZero Org flags
+	// Currently, if you provide bzero flag the org flags will be ignored
 	flag.StringVar(&orgID, orgIDFlag, "", "")
 	flag.StringVar(&orgProvider, orgProviderFlag, "", "")
 
