@@ -3,7 +3,7 @@ Description=bzero-ssm-agent
 After=network-online.target
 
 # Only try to restart thrice (v230 and above).
-StartLimitBurst=5
+StartLimitBurst=3
 StartLimitIntervalSec=400
 
 [Service]
