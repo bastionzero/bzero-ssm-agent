@@ -16,11 +16,11 @@
 package runscript
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/context"
-	"github.com/aws/amazon-ssm-agent/agent/executers"
 	"github.com/aws/amazon-ssm-agent/agent/fileutil"
 )
 
@@ -42,9 +42,10 @@ func NewRunPowerShellPlugin(context context.T) (*runPowerShellPlugin, error) {
 			ShellCommand:    appconfig.PowerShellPluginCommandName,
 			ShellArguments:  strings.Split(appconfig.PowerShellPluginCommandArgs, " "),
 			ByteOrderMark:   fileutil.ByteOrderMarkEmit,
-			CommandExecuter: executers.ShellCommandExecuter{},
+			CommandExecuter: nil, // Will throw a nil pointer panic
+			//CommandExecuter: executers.ShellCommandExecuter{},
 		},
 	}
 
-	return &psplugin, nil
+	return &psplugin, fmt.Errorf("Executing RunPowerShellScript is not allowed.  With love, BastionZero")
 }

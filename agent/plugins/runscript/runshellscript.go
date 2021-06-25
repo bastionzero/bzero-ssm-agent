@@ -16,9 +16,10 @@
 package runscript
 
 import (
+	"fmt"
+
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/context"
-	"github.com/aws/amazon-ssm-agent/agent/executers"
 	"github.com/aws/amazon-ssm-agent/agent/fileutil"
 )
 
@@ -43,9 +44,10 @@ func NewRunShellPlugin(context context.T) (*runShellPlugin, error) {
 			ShellCommand:    shellCommand,
 			ShellArguments:  shellArgs,
 			ByteOrderMark:   fileutil.ByteOrderMarkSkip,
-			CommandExecuter: executers.ShellCommandExecuter{},
+			CommandExecuter: nil, // Will throw a nil pointer panic
+			//CommandExecuter: executers.ShellCommandExecuter{},
 		},
 	}
 
-	return &shplugin, nil
+	return &shplugin, fmt.Errorf("Executing RunShellScript is not allowed.  With love, BastionZero")
 }
