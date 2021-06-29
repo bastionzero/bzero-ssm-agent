@@ -27,6 +27,7 @@ import (
 const (
 	googleUrl    = "https://accounts.google.com"
 	microsoftUrl = "https://login.microsoftonline.com"
+	ciscoUrl     = "https://cloudsso.cisco.com" // Ping Federation
 	// this is the tenant id Microsoft uses when the account is a personal account (not a work/school account)
 	// https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens#payload-claims)
 	microsoftPersonalAccountTenantId = "9188040d-6c67-4c5b-b112-36a304b66dad"
@@ -63,6 +64,7 @@ type KeysplittingHelper struct {
 
 	googleIss    string `default:""`
 	microsoftIss string `default:""`
+	ciscoIss     string `default:""`
 
 	HPointer         string `default:""`
 	ExpectedHPointer string
@@ -94,6 +96,7 @@ func Init(log log.T) (IKeysplittingHelper, error) {
 		bzeCerts:     make(map[string]map[string]interface{}),
 		googleIss:    googleUrl,
 		microsoftIss: getMicrosoftIssuerUrl(bzeroConfig["OrganizationID"]),
+		ciscoIss:     ciscoUrl,
 	}
 
 	log.Infof("[Keysplitting] Keysplitting Initiated.")
@@ -344,6 +347,8 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 		issUrl = k.googleIss
 	case "microsoft":
 		issUrl = k.microsoftIss
+	case "cisco":
+		issUrl = k.ciscoUrl
 	default:
 		message := fmt.Sprintf("Unhandled Provider type, %v", k.provider)
 		return time.Time{}, k.BuildError(message, kysplContracts.BZECertInvalidProvider)
