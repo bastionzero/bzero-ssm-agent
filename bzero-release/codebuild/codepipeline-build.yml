@@ -13,11 +13,7 @@ phases:
   pre_build:
     commands:
       - echo Pre-Build started...
-      - LatestTag=$(git describe --tags --abbrev=0)
-      - grep -q 'bzero-' <<< $LatestTag && echo "Tag is valid" || (echo "Tag $LatestTag is invalid" && exit 1)
-      - echo "Using latest git tag $LatestTag"
-      - git checkout $LatestTag
-      - AgentVersion=$(echo $LatestTag | sed 's/bzero-//g' )
+      - AgentVersion=$(cat VERSION)
       - echo "Using AgentVersion $AgentVersion"
   build:
     commands:
