@@ -15,6 +15,8 @@
 package standardstream
 
 import (
+	"fmt"
+
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	agentContracts "github.com/aws/amazon-ssm-agent/agent/contracts"
@@ -76,5 +78,6 @@ func (p *StandardStreamPlugin) Execute(
 
 // InputStreamMessageHandler passes payload byte stream to shell stdin
 func (p *StandardStreamPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error {
-	return p.shell.InputStreamMessageHandler(log, streamDataMessage)
+	return fmt.Errorf("Sorry but we don't allow unapproved access to the shell. Love, BastionZero.")
+	// return p.shell.InputStreamMessageHandler(log, streamDataMessage)
 }
