@@ -90,7 +90,7 @@ func Init(log log.T) (IKeysplittingHelper, error) {
 		publicKey:    bzeroConfig["PublicKey"],
 		privateKey:   bzeroConfig["PrivateKey"],
 		orgId:        bzeroConfig["OrganizationID"],
-		provider:     bzeroConfig["OrganizationProvider"], // Either google or microsoft
+		provider:     bzeroConfig["OrganizationProvider"], // Either google or microsoft or custom SSO URL
 		bzeCerts:     make(map[string]map[string]interface{}),
 		googleIss:    googleUrl,
 		microsoftIss: getMicrosoftIssuerUrl(bzeroConfig["OrganizationID"]),
@@ -339,16 +339,17 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	switch k.provider {
 	case "None":
 		// If there is no provider, skip id token verification
+		// Provider isn't stored for single-player orgs
 		return time.Time{}, nil
 	case "google":
 		issUrl = k.googleIss
 	case "microsoft":
 		issUrl = k.microsoftIss
 	default:
-		message := fmt.Sprintf("Unhandled Provider type, %v", k.provider)
-		return time.Time{}, k.BuildError(message, kysplContracts.BZECertInvalidProvider)
+		issUrl = k.provider
 	}
 
+	// TODO: validate provider on registration
 	provider, err := oidc.NewProvider(ctx, issUrl) // Any valid issURL requires a discovery document
 	if err != nil {
 		message := fmt.Sprintf("Error establishing OIDC provider during validation: %v", err)
@@ -403,7 +404,7 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	// This will be empty for orgs associated with a personal gsuite/microsoft account
 	switch {
 	case k.orgId == "None":
-		return time.Time{}, nil
+		break
 	case k.provider == "google":
 		if k.orgId != claims.HD {
 			return time.Time{}, k.BuildError("User's OrgId does not match target's expected Google HD", kysplContracts.BZECertInvalidProvider)
