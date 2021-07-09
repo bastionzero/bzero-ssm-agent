@@ -27,12 +27,21 @@ const (
 )
 
 // Struct to allow for backwards/forwards compatability in registration flow
+// This is the data stored in the vault
 type BZeroRegInfo struct {
 	RegID      string `json:"registrationId"`
 	RegSecret  string `json:"registrationSecret"`
 	TargetName string `json:"instanceName"`
 	EnvID      string `json:"environmentId"`
 	APIUrl     string `json:"apiUrl"`
+}
+
+// This is the data sent to the Reg API
+type BZeroRegRequest struct {
+	RegID      string `json:"registrationId"`
+	RegSecret  string `json:"registrationSecret"`
+	TargetName string `json:"instanceName"`
+	EnvID      string `json:"environmentId"`
 }
 
 // For capturing response from registration API
@@ -48,15 +57,23 @@ type BZeroRegResponse struct {
 // Attempts to register as many times as is acceptable
 func Register(log log.T, retry bool) (BZeroRegResponse, error) {
 	// Get Registration Information
-	reg, err := grabRegInfo()
+	regInfo, err := grabRegInfo()
+
 	if err != nil {
-		log.Error(err.Error())
 		return BZeroRegResponse{}, err
+	}
+
+	// Unmarshal the retrieved data
+	var regReq = BZeroRegRequest{
+		RegID:      regInfo.RegID,
+		RegSecret:  regInfo.RegSecret,
+		TargetName: regInfo.TargetName,
+		EnvID:      regInfo.EnvID,
 	}
 
 	// Try to register
 	log.Infof("Making Registration API Request...")
-	resp, err := callRegAPI(reg, log)
+	resp, err := callRegAPI(regReq, regInfo.APIUrl, log)
 
 	if err == nil {
 		log.Infof("Successfully Registered Agent on First Attempt!")
@@ -73,7 +90,7 @@ func Register(log log.T, retry bool) (BZeroRegResponse, error) {
 		backoff := time.Duration(2 ^ count + rand.Intn(maxRetryWait))
 		time.Sleep(backoff * time.Second)
 
-		resp, err = callRegAPI(reg, log)
+		resp, err = callRegAPI(regReq, regInfo.APIUrl, log)
 
 		count += 1
 	}
@@ -90,8 +107,6 @@ func Register(log log.T, retry bool) (BZeroRegResponse, error) {
 }
 
 func grabRegInfo() (BZeroRegInfo, error) {
-	var regInfo BZeroRegInfo
-
 	regFile, err := vault.Retrieve(BZeroRegStorage)
 	if err != nil {
 		rerr := fmt.Errorf("Error Retreiving BZero Registration Information: %v", err)
@@ -101,31 +116,24 @@ func grabRegInfo() (BZeroRegInfo, error) {
 		return BZeroRegInfo{}, rerr
 	}
 
-	// Unmarshal the retrieved data
+	var regInfo BZeroRegInfo
 	if err := json.Unmarshal([]byte(regFile), &regInfo); err != nil {
 		rerr := fmt.Errorf("Error Marshalling Stored BZero Registration Information: %v", err)
 		return BZeroRegInfo{}, rerr
+	} else {
+		return regInfo, nil
 	}
-
-	return regInfo, nil
 }
 
 // Hit BZero Registration API to attempt to register
-func callRegAPI(reg BZeroRegInfo, log log.T) (BZeroRegResponse, error) {
+func callRegAPI(reg BZeroRegRequest, regAPIURL string, log log.T) (BZeroRegResponse, error) {
 	client := &http.Client{
 		Timeout: httpTimeout,
 	}
 
-	// POST body
-	var body map[string]interface{}
-
-	data, _ := json.Marshal(reg)
-	json.Unmarshal(data, &body)
-	delete(body, "apiUrl") // We want everything from BzeroRegInfo except for the APIUrl
-	bs, _ := json.Marshal(body)
-
 	// Create request
-	req, err := http.NewRequest("POST", reg.APIUrl, bytes.NewBuffer(bs))
+	bs, _ := json.Marshal(reg)
+	req, err := http.NewRequest("POST", regAPIURL, bytes.NewBuffer(bs))
 	if err != nil {
 		return BZeroRegResponse{}, fmt.Errorf("Error creating new http request: %v", err)
 	}
