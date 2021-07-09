@@ -9,7 +9,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -44,7 +43,9 @@ type IKeysplittingHelper interface {
 	UpdateHPointer(rawpayload interface{}) error
 	BuildError(message string, errortype kysplContracts.KeysplittingErrorType) error
 	BuildSynAck(nonce string, synpayload kysplContracts.SynPayload) error
+	BuildDataAckPayload(action kysplContracts.KeysplittingAction, payload string) (kysplContracts.DataAckPayload, error)
 	BuildDataAck(datapayload kysplContracts.DataPayload) error
+	BuildDataAckWithPayload(datapayload kysplContracts.DataPayload, payload string) error
 	CheckBZECert(certHash string) error
 	VerifyHPointer(newPointer string) error
 	VerifyTargetId(targetid string) error
@@ -460,7 +461,7 @@ func (k *KeysplittingHelper) BuildError(message string, errortype kysplContracts
 	}
 
 	return &kysplContracts.KeysplittingError{
-		Err:     errors.New("ERROR"),
+		Err:     kysplContracts.DataAck,
 		Content: errorContent,
 	}
 }
@@ -491,24 +492,24 @@ func (k *KeysplittingHelper) BuildSynAck(nonce string, synpayload kysplContracts
 	k.ExpectedHPointer, _ = k.HashStruct(contentPayload)
 
 	return &kysplContracts.KeysplittingError{
-		Err:     errors.New("SYNACK"),
+		Err:     kysplContracts.SynAck,
 		Content: synAckContent,
 	}
 }
 
-func (k *KeysplittingHelper) BuildDataAck(datapayload kysplContracts.DataPayload) error {
+func (k *KeysplittingHelper) BuildDataAckPayload(action kysplContracts.KeysplittingAction, payload string) (kysplContracts.DataAckPayload, error) {
 	// Build DataAck message payload
 	contentPayload := kysplContracts.DataAckPayloadPayload{
 		Type:            "DATAACK",
-		Action:          datapayload.Payload.Action,
+		Action:          string(action),
 		HPointer:        k.HPointer,
-		Payload:         datapayload.Payload.Payload,
+		Payload:         payload,
 		TargetPublicKey: k.publicKey,
 	}
 
 	signature, err := k.SignPayload(contentPayload)
 	if err != nil {
-		return err
+		return kysplContracts.DataAckPayload{}, err
 	}
 
 	dataAckContent := kysplContracts.DataAckPayload{
@@ -519,8 +520,27 @@ func (k *KeysplittingHelper) BuildDataAck(datapayload kysplContracts.DataPayload
 	// Update expectedHPointer aka the hpointer in the next received message to be H(DATAACK)
 	k.ExpectedHPointer, _ = k.HashStruct(contentPayload)
 
+	return dataAckContent, nil
+}
+
+func (k *KeysplittingHelper) BuildDataAckWithPayload(datapayload kysplContracts.DataPayload, payload string) error {
+	dataAckContent, err := k.BuildDataAckPayload(kysplContracts.KeysplittingAction(datapayload.Payload.Action), payload)
+	if err != nil {
+		return err
+	}
 	return &kysplContracts.KeysplittingError{
-		Err:     errors.New("DATAACK"),
+		Err:     kysplContracts.DataAck,
+		Content: dataAckContent,
+	}
+}
+
+func (k *KeysplittingHelper) BuildDataAck(datapayload kysplContracts.DataPayload) error {
+	dataAckContent, err := k.BuildDataAckPayload(kysplContracts.KeysplittingAction(datapayload.Payload.Action), datapayload.Payload.Payload)
+	if err != nil {
+		return err
+	}
+	return &kysplContracts.KeysplittingError{
+		Err:     kysplContracts.DataAck,
 		Content: dataAckContent,
 	}
 }

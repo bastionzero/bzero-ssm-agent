@@ -1,6 +1,8 @@
 // Keysplitting Type Definitions
 package contracts
 
+import "errors"
+
 // BZEcert type for parsing client's certificate
 type BZECert struct {
 	InitialIdToken  string `json:"initialIdToken"`
@@ -99,6 +101,14 @@ type SshOpenActionPayload struct {
 	Username  string `json:"username"`
 	SshPubKey string `json:"sshPubKey"`
 }
+
+type KeysplittingResponseMessageType error
+
+var (
+	DataAck KeysplittingResponseMessageType = errors.New("DATAACK")
+	SynAck  KeysplittingResponseMessageType = errors.New("SYNACK")
+	Error   KeysplittingResponseMessageType = errors.New("ERROR")
+)
 
 // This error is to help return the SYNACK, DATACK, or KSERROR in the correct
 // Datachannel object.  One of the payload will always be empty and we'll
