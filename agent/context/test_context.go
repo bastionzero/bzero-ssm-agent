@@ -81,6 +81,12 @@ func (m *Mock) Log() log.T {
 	return args.Get(0).(log.T)
 }
 
+// ChangePluginNameTo mocks the ChangePluginNameTo function.
+func (m *Mock) ChangePluginNameTo(pluginName string) T {
+	args := m.Called(pluginName)
+	return args.Get(0).(T)
+}
+
 // With mocks the With function.
 func (m *Mock) With(ctx string) T {
 	args := m.Called(ctx)

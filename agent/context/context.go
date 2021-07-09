@@ -16,6 +16,9 @@
 package context
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/common/identity"
@@ -31,6 +34,7 @@ type T interface {
 	CurrentContext() []string
 	AppConstants() *appconfig.AppConstants
 	Identity() identity.IAgentIdentity
+	ChangePluginNameTo(pluginName string) T
 }
 
 // Default returns an empty context that use the default logger and appconfig.
@@ -51,6 +55,23 @@ type defaultContext struct {
 	appconfig appconfig.SsmagentConfig
 	appconst  appconfig.AppConstants
 	identity  identity.IAgentIdentity
+}
+
+func (c *defaultContext) ChangePluginNameTo(pluginName string) T {
+	if strings.Contains(c.context[len(c.context)-1], "pluginName=") {
+		c.context[len(c.context)-1] = fmt.Sprintf("[pluginName=%v]", pluginName)
+		contextSlice := c.context
+		newContext := &defaultContext{
+			context:   contextSlice,
+			log:       c.log.WithContext(contextSlice...),
+			appconfig: c.appconfig,
+			appconst:  c.appconst,
+			identity:  c.identity,
+		}
+		return newContext
+	} else {
+		return c
+	}
 }
 
 func (c *defaultContext) With(logContext string) T {
