@@ -191,6 +191,9 @@ const (
 	// PluginNamePort is the name for session manager port plugin.
 	PluginNamePort = "Port"
 
+	// PluginNameFileUploadDownload is the name for the session manager, keysplitting-backed FUD plugin
+	PluginNameFileUploadDownload = "FileUploadDownload"
+
 	// Session default RunAs user name
 	DefaultRunAsUserName = "ssm-user"
 )
