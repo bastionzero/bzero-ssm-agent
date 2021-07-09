@@ -15,9 +15,11 @@
 package sessionplugin
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 
+	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
@@ -27,6 +29,7 @@ import (
 	mgsConfig "github.com/aws/amazon-ssm-agent/agent/session/config"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/session/datachannel"
+	"github.com/aws/amazon-ssm-agent/agent/session/plugins/fileuploaddownload"
 	"github.com/aws/amazon-ssm-agent/agent/session/retry"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 )
@@ -58,6 +61,37 @@ func (p *SessionPlugin) Execute(
 	config contracts.Configuration,
 	cancelFlag task.CancelFlag,
 	output iohandler.IOHandler) {
+
+	if config.PluginName == appconfig.PluginNameInteractiveCommands {
+		var shellProps mgsContracts.ShellProperties
+		err := jsonutil.Remarshal(config.Properties, &shellProps)
+		if err != nil {
+			errorString := fmt.Errorf("Session id %v: Invalid format in session properties %v;\nerror %v", config.SessionId, config.Properties, err)
+			output.MarkAsFailed(errorString)
+			p.context.Log().Error(errorString)
+			return
+		}
+
+		// Check if we should run FUD. All FUD activations have a JSON encoded
+		// StartFUDCommand struct in the .Commands field of the shell
+		// properties.
+		var startFud fileuploaddownload.StartFUDCommand
+		if err := json.Unmarshal([]byte(shellProps.Linux.Commands), &startFud); err == nil {
+			if startFud.PluginName == "StartFud" {
+				targetUser := startFud.TargetUser
+				p.context = p.context.ChangePluginNameTo(appconfig.PluginNameFileUploadDownload)
+				fud, err := fileuploaddownload.NewPlugin(p.context, targetUser)
+				if err != nil {
+					errorString := fmt.Errorf("Session id %v: Failed to create FUD plugin: %v", config.SessionId, err)
+					output.MarkAsFailed(errorString)
+					p.context.Log().Error(errorString)
+					return
+				}
+				// Change to FUD plugin
+				p.sessionPlugin = fud
+			}
+		}
+	}
 
 	log := p.context.Log()
 	kmsKeyId := config.KmsKeyId
