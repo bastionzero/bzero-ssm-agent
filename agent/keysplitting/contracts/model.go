@@ -95,7 +95,34 @@ const (
 	ShellClose  KeysplittingAction = "shell/close"
 	ShellInput  KeysplittingAction = "shell/input"
 	ShellResize KeysplittingAction = "shell/resize"
+	FudDownload KeysplittingAction = "fud/download"
+	FudUpload   KeysplittingAction = "fud/upload"
 )
+
+type FudStreamedChunkPayload struct {
+	Data   []byte `json:"data"`
+	Offset int    `json:"offset"`
+}
+
+type FudDownloadActionDataPayload struct {
+	FilePath string `json:"filePath"`
+}
+
+type FudDownloadActionDataAckPayload struct {
+	ExpectedHash string `json:"expectedHash"`
+	FileName     string `json:"fileName"`
+}
+
+type FudUploadActionDataPayload struct {
+	ExpectedHash    string `json:"expectedHash"`
+	DestinationPath string `json:"destinationPath"`
+}
+
+// FudUploadActionDataAckUploadCompletePayload signifies that the upload
+// corresponding to ExpectedHash has finished agent-side with no errors.
+type FudUploadActionDataAckUploadCompletePayload struct {
+	ExpectedHash string `json:"expectedHash"`
+}
 
 type SshOpenActionPayload struct {
 	Username  string `json:"username"`
@@ -142,4 +169,6 @@ const (
 	OutdatedHPointer             KeysplittingErrorType = "OutdatedHPointer"
 	BZECertExpiredInitialIdToken KeysplittingErrorType = "BZECertExpiredInitialIdToken"
 	HandlerNotReady              KeysplittingErrorType = "HandlerNotReady"
+	FUDFileDoesNotExist          KeysplittingErrorType = "FUDFileDoesNotExist"
+	FUDUserDoesNotHavePermission KeysplittingErrorType = "FUDUserDoesNotHavePermission"
 )
