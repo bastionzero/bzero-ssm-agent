@@ -1,4 +1,8 @@
-Latest
+3.0.732.21
+===============
+- Add keysplitting-backed file upload/download.
+
+3.0.732.18
 ===============
 - Fix bug in document parameter expansion
 - Fix datachannel to wait for empty message buffer before closing
