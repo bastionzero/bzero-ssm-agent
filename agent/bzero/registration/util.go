@@ -20,7 +20,7 @@ const (
 	BZeroRegErrorExitCode = 234 // Sorry I'm a nerd but this is ascii B + Z
 
 	// Purely internal
-	maxRegistrationRetry = 2
+	maxRegistrationRetry = 10
 	retrySleep           = 10 * time.Second
 	httpTimeout          = 20 * time.Second
 	maxRetryWait         = 30
