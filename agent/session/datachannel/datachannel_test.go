@@ -696,6 +696,7 @@ func getAgentAndStreamingMessageList(size int) (serializedAgentMessage [][]byte,
 			serializedAgentMessage[i],
 			int64(i),
 			time.Now(),
+			make(chan struct{}, 1),
 		}
 	}
 	return

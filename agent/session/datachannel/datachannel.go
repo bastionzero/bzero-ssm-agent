@@ -17,6 +17,7 @@ package datachannel
 import (
 	"bytes"
 	"container/list"
+	goContext "context"
 	cryptoRand "crypto/rand"
 	"encoding/json"
 	"errors"
@@ -60,6 +61,7 @@ type IDataChannel interface {
 	Reconnect(log log.T) error
 	SendMessage(log log.T, input []byte, inputType int) error
 	SendStreamDataMessage(log log.T, dataType mgsContracts.PayloadType, inputData []byte) error
+	SendStreamDataMessageAndWaitForAck(ctx goContext.Context, log log.T, payloadType mgsContracts.PayloadType, inputData []byte) error
 	ResendStreamDataMessageScheduler(log log.T) error
 	SendKeysplittingMessage(log log.T, payload interface{}) error
 	ProcessAcknowledgedMessage(log log.T, acknowledgeMessageContent mgsContracts.AcknowledgeContent)
@@ -132,6 +134,7 @@ type StreamingMessage struct {
 	Content        []byte
 	SequenceNumber int64
 	LastSentTime   time.Time
+	Acked          chan struct{}
 }
 
 type InputStreamMessageHandler func(log log.T, streamDataMessage mgsContracts.AgentMessage) error
@@ -394,6 +397,71 @@ func (dataChannel *DataChannel) PrepareToCloseChannel(log log.T) {
 	}
 }
 
+func (dataChannel *DataChannel) SendStreamDataMessageAndWaitForAck(ctx goContext.Context, log log.T, payloadType mgsContracts.PayloadType, inputData []byte) (err error) {
+	if len(inputData) == 0 {
+		log.Debugf("Ignoring empty stream data payload. PayloadType: %d", payloadType)
+		return nil
+	}
+
+	var flag uint64 = 0
+	if dataChannel.StreamDataSequenceNumber == 0 {
+		flag = 1
+	}
+
+	// If encryption has been enabled, encrypt the payload
+	if dataChannel.encryptionEnabled && payloadType == mgsContracts.Output {
+		if inputData, err = dataChannel.blockCipher.EncryptWithAESGCM(inputData); err != nil {
+			return fmt.Errorf("error encrypting stream data message sequence %d, err: %v", dataChannel.StreamDataSequenceNumber, err)
+		}
+	}
+
+	uuid.SwitchFormat(uuid.CleanHyphen)
+	messageId := uuid.NewV4()
+	agentMessage := &mgsContracts.AgentMessage{
+		MessageType:    mgsContracts.OutputStreamDataMessage,
+		SchemaVersion:  1,
+		CreatedDate:    uint64(time.Now().UnixNano() / 1000000),
+		SequenceNumber: dataChannel.StreamDataSequenceNumber,
+		Flags:          flag,
+		MessageId:      messageId,
+		PayloadType:    uint32(payloadType),
+		Payload:        inputData,
+	}
+	msg, err := agentMessage.Serialize(log)
+	if err != nil {
+		return fmt.Errorf("cannot serialize StreamData message %v", agentMessage)
+	}
+
+	if dataChannel.Pause {
+		log.Tracef("Sending stream data message has been paused, saving stream data message sequence %d to local map: ", dataChannel.StreamDataSequenceNumber)
+	} else {
+		log.Tracef("Send stream data message sequence number %d", dataChannel.StreamDataSequenceNumber)
+		if err = dataChannel.SendMessage(log, msg, websocket.BinaryMessage); err != nil {
+			log.Errorf("Error sending stream data message %v", err)
+		}
+	}
+
+	waitForAckCh := make(chan struct{}, 1)
+	streamingMessage := StreamingMessage{
+		msg,
+		dataChannel.StreamDataSequenceNumber,
+		time.Now(),
+		waitForAckCh,
+	}
+
+	log.Tracef("Add stream data to OutgoingMessageBuffer. Sequence Number: %d", streamingMessage.SequenceNumber)
+	dataChannel.AddDataToOutgoingMessageBuffer(streamingMessage)
+	dataChannel.StreamDataSequenceNumber = dataChannel.StreamDataSequenceNumber + 1
+
+	// Wait for the ack or cancel
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-waitForAckCh:
+		return nil
+	}
+}
+
 // SendStreamDataMessage sends a data message in a form of AgentMessage for streaming.
 func (dataChannel *DataChannel) SendStreamDataMessage(log log.T, payloadType mgsContracts.PayloadType, inputData []byte) (err error) {
 	if len(inputData) == 0 {
@@ -443,6 +511,7 @@ func (dataChannel *DataChannel) SendStreamDataMessage(log log.T, payloadType mgs
 		msg,
 		dataChannel.StreamDataSequenceNumber,
 		time.Now(),
+		make(chan struct{}, 1),
 	}
 
 	log.Tracef("Add stream data to OutgoingMessageBuffer. Sequence Number: %d", streamingMessage.SequenceNumber)
@@ -492,6 +561,9 @@ func (dataChannel *DataChannel) ProcessAcknowledgedMessage(log log.T, acknowledg
 
 			log.Tracef("Delete stream data from OutgoingMessageBuffer. Sequence Number: %d", streamMessage.SequenceNumber)
 			dataChannel.RemoveDataFromOutgoingMessageBuffer(streamMessageElement)
+
+			// Send Ack to those waiting
+			streamMessage.Acked <- struct{}{}
 			break
 		}
 	}
@@ -764,6 +836,7 @@ func (dataChannel *DataChannel) handleStreamDataMessage(log log.T,
 				rawMessage,
 				streamDataMessage.SequenceNumber,
 				time.Now(),
+				make(chan struct{}, 1),
 			}
 
 			//Add message to buffer for future processing
@@ -886,6 +959,7 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 					dataChannel.SendKeysplittingMessage(log, kserr.Content)
 				} else { // If it's not of type KeysplittingError, it's wrong so build one and send it
 					dataChannel.SendKeysplittingMessage(log, keysplitting.BuildUnknownErrorPayload(err))
+					log.Errorf("[Keysplitting] Unknown error: %v", err.Error())
 				}
 			} else {
 				return err
