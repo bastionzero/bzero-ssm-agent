@@ -44,6 +44,7 @@ func NewWebsocketUtil(logger log.T, dialerInput *websocket.Dialer) *WebsocketUti
 		d := &websocket.Dialer{
 			TLSClientConfig: network.GetDefaultTLSConfig(logger),
 			Proxy:           http.ProxyFromEnvironment,
+			WriteBufferSize: 1024 * 64,
 		}
 		websocketUtil = &WebsocketUtil{
 			dialer: d,
