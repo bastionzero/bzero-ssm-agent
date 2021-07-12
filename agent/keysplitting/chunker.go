@@ -57,24 +57,24 @@ func splitReaderIntoChunks(ctx context.Context, reader io.Reader, chunkSizeBytes
 				case <-ctx.Done():
 					return
 				}
+			} else {
+				// Hit EOF. Send special result
+				select {
+				case chunksRead <- ChunkResult{Result: Chunk{}, Error: io.EOF}:
+					return
+				case <-ctx.Done():
+					return
+				}
 			}
-
-			// Hit EOF. Send special result
+		} else {
 			select {
-			case chunksRead <- ChunkResult{Result: Chunk{}, Error: io.EOF}:
-				return
+			case chunksRead <- ChunkResult{Result: Chunk{Data: buffer[:bytesRead], Offset: offset}, Error: nil}:
+				break
 			case <-ctx.Done():
 				return
 			}
-		}
 
-		select {
-		case chunksRead <- ChunkResult{Result: Chunk{Data: buffer[:bytesRead], Offset: offset}, Error: nil}:
-			break
-		case <-ctx.Done():
-			return
+			offset += bytesRead
 		}
-
-		offset += bytesRead
 	}
 }
