@@ -34,14 +34,6 @@ import (
 const chunkSizeBytes = 1024 * 40
 const pluginTimeout = 5 * time.Minute
 
-// StartFUDCommand is the JSON encoded string that is used to activate the FUD
-// plugin via the AWS-StartInteractiveCommand document. It is found in the
-// command parameter.
-type StartFUDCommand struct {
-	PluginName string `json:"PluginName"`
-	TargetUser string `json:"TargetUser"`
-}
-
 type FUDMode int
 
 const (
