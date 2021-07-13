@@ -29,6 +29,7 @@ import (
 	mgsConfig "github.com/aws/amazon-ssm-agent/agent/session/config"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/session/datachannel"
+	pluginContracts "github.com/aws/amazon-ssm-agent/agent/session/plugins/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/session/plugins/fileuploaddownload"
 	"github.com/aws/amazon-ssm-agent/agent/session/retry"
 	"github.com/aws/amazon-ssm-agent/agent/task"
@@ -75,10 +76,11 @@ func (p *SessionPlugin) Execute(
 		// Check if we should run FUD. All FUD activations have a JSON encoded
 		// StartFUDCommand struct in the .Commands field of the shell
 		// properties.
-		var startFud fileuploaddownload.StartFUDCommand
+		var startFud pluginContracts.StartPluginMessage
 		if err := json.Unmarshal([]byte(shellProps.Linux.Commands), &startFud); err == nil {
-			if startFud.PluginName == "StartFud" {
-				targetUser := startFud.TargetUser
+			if startFud.PluginName == string(pluginContracts.StartFud) {
+				payload := startFud.Payload.(*pluginContracts.StartFUDCommand)
+				targetUser := payload.TargetUser
 				p.context = p.context.ChangePluginNameTo(appconfig.PluginNameFileUploadDownload)
 				fud, err := fileuploaddownload.NewPlugin(p.context, targetUser)
 				if err != nil {
