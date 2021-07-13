@@ -2,6 +2,7 @@ package fileuploaddownload
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,7 +29,6 @@ import (
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/session/datachannel"
 	"github.com/aws/amazon-ssm-agent/agent/task"
-	"golang.org/x/crypto/sha3"
 )
 
 const chunkSizeBytes = 1024 * 40
@@ -300,13 +300,12 @@ func (p *FileUploadDownloadPlugin) openAndHashFile(filePath string) (string, err
 }
 
 func (p *FileUploadDownloadPlugin) hashFile(file *os.File) (string, error) {
-	// Adapted to SHA-3 from example (File): https://golang.org/pkg/crypto/sha256/#New
-	h := sha3.New256()
+	h := sha256.New()
 	if _, err := io.Copy(h, file); err != nil {
 		return "", fmt.Errorf("failed to hash file: %v", err)
 	}
 
-	// Return hex-encoded SHA-3 hash
+	// Return hex-encoded SHA-256 hash
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
