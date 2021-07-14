@@ -287,6 +287,10 @@ func (p *FileUploadDownloadPlugin) execute(
 		output.SetExitCode(appconfig.SuccessExitCode)
 		output.SetStatus(agentContracts.ResultStatusSuccess)
 		log.Info("FUD plugin execute() succeeded with no errors")
+
+		// Wait for Bastion to terminate plugin (cancel flag set), or for signal
+		// to be caught.
+		<-ctx.Done()
 	}
 }
 
