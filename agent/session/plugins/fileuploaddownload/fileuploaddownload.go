@@ -399,8 +399,8 @@ func (p *FileUploadDownloadPlugin) receiveStreamedFile(ctx context.Context, expe
 
 // For handling downloads
 func (p *FileUploadDownloadPlugin) sendStreamedFile(ctx context.Context, filePath string) error {
-	chunksCh := make(chan keysplitting.ChunkResult)
-	if err := keysplitting.ReadFileChunkwise(ctx, filePath, chunkSizeBytes, chunksCh); err != nil {
+	chunksCh := make(chan ChunkResult)
+	if err := ReadFileChunkwise(ctx, filePath, chunkSizeBytes, chunksCh); err != nil {
 		return err
 	}
 	log := p.context.Log()
