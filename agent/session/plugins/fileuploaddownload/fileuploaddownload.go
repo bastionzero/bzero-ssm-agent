@@ -599,14 +599,6 @@ func (p *FileUploadDownloadPlugin) InputStreamMessageHandler(log log.T, streamDa
 	case mgsContracts.Data:
 		log.Infof("[Keysplitting-FUD] Data Payload Received: %v", string(streamDataMessage.Payload))
 
-		var datapayload kysplContracts.DataPayload
-
-		if err := json.Unmarshal(streamDataMessage.Payload, &datapayload); err != nil {
-			message := fmt.Sprintf("Error occurred while parsing DataPayload json: %v", err)
-			return p.ksHelper.BuildError(message, kysplContracts.InvalidPayload)
-		}
-		log.Infof("[Keysplitting-FUD] Data Payload Unmarshalled...")
-
 		if datapayload, err := p.ksHelper.ValidateDataMessage(streamDataMessage.Payload); err == nil {
 			return p.handleValidatedDataPayload(datapayload, log)
 		} else {
