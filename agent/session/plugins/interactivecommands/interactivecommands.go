@@ -15,44 +15,44 @@
 package interactivecommands
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	agentContracts "github.com/aws/amazon-ssm-agent/agent/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler"
-	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
 	"github.com/aws/amazon-ssm-agent/agent/keysplitting"
 	kysplContracts "github.com/aws/amazon-ssm-agent/agent/keysplitting/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/session/datachannel"
 	"github.com/aws/amazon-ssm-agent/agent/session/plugins/sessionplugin"
-	"github.com/aws/amazon-ssm-agent/agent/session/shell"
+	"github.com/aws/amazon-ssm-agent/agent/session/plugins/singlecommand"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 )
 
-// InteractiveCommandsPlugin is the type for the plugin.
+// InteractiveCommandsPlugin is the type for the sessionPlugin.
 type InteractiveCommandsPlugin struct {
-	context     context.T
-	shell       shell.IShellPlugin
-	channelOpen bool
-	ksHelper    keysplitting.IKeysplittingHelper
+	context       context.T
+	sessionPlugin sessionplugin.ISessionPlugin
+	channelOpen   bool
+	ksHelper      keysplitting.IKeysplittingHelper
 }
 
 // Returns parameters required for CLI/console to start session
 func (p *InteractiveCommandsPlugin) GetPluginParameters(parameters interface{}) interface{} {
-	return nil
+	return p.sessionPlugin.GetPluginParameters(parameters)
 }
 
 // InteractiveCommands plugin doesn't require handshake to establish session
 func (p *InteractiveCommandsPlugin) RequireHandshake() bool {
-	return false
+	return p.sessionPlugin.RequireHandshake()
 }
 
-// NewPlugin returns a new instance of the Interactive Commands Plugin
+// NewPlugin returns a new instance of the InteractiveCommands Plugin
 func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
-	shellPlugin, err := shell.NewPlugin(context, appconfig.PluginNameInteractiveCommands)
+	singleCommandPlugin, err := singlecommand.NewPlugin(context, appconfig.PluginNameInteractiveCommands)
 	if err != nil {
 		return nil, err
 	}
@@ -60,10 +60,10 @@ func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
 	log := context.Log()
 	if helper, err := keysplitting.Init(log); err == nil {
 		var plugin = InteractiveCommandsPlugin{
-			context:     context,
-			shell:       shellPlugin,
-			channelOpen: false,
-			ksHelper:    helper,
+			context:       context,
+			sessionPlugin: singleCommandPlugin,
+			channelOpen:   false,
+			ksHelper:      helper,
 		}
 		return &plugin, nil
 	} else {
@@ -71,48 +71,19 @@ func NewPlugin(context context.T) (sessionplugin.ISessionPlugin, error) {
 	}
 }
 
-// name returns the name of Interactive commands Plugin
+// name returns the name of interactive commands Plugin
 func (p *InteractiveCommandsPlugin) name() string {
 	return appconfig.PluginNameInteractiveCommands
 }
 
-// Execute starts pseudo terminal.
-// It reads incoming message from data channel and writes to pty.stdin.
-// It reads message from pty.stdout and writes to data channel
-func (p *InteractiveCommandsPlugin) Execute(
-	config agentContracts.Configuration,
+// Execute executes command as passed in from document parameter via pty.stdin.
+// It reads message from cmd.stdout and writes to data channel.
+func (p *InteractiveCommandsPlugin) Execute(config agentContracts.Configuration,
 	cancelFlag task.CancelFlag,
 	output iohandler.IOHandler,
 	dataChannel datachannel.IDataChannel) {
 
-	logger := p.context.Log()
-	var shellProps mgsContracts.ShellProperties
-	err := jsonutil.Remarshal(config.Properties, &shellProps)
-	logger.Debugf("Plugin properties %v", shellProps)
-	if err != nil {
-		sessionPluginResultOutput := mgsContracts.SessionPluginResultOutput{}
-		output.SetExitCode(appconfig.ErrorExitCode)
-		output.SetStatus(agentContracts.ResultStatusFailed)
-		sessionPluginResultOutput.Output = fmt.Sprintf("Invalid format in session properties %v;\nerror %v", config.Properties, err)
-		output.SetOutput(sessionPluginResultOutput)
-		logger.Error(sessionPluginResultOutput.Output)
-		return
-	}
-
-	if err := p.validateProperties(shellProps); err != nil {
-		sessionPluginResultOutput := mgsContracts.SessionPluginResultOutput{}
-		output.SetExitCode(appconfig.ErrorExitCode)
-		output.SetStatus(agentContracts.ResultStatusFailed)
-		sessionPluginResultOutput.Output = err.Error()
-		output.SetOutput(sessionPluginResultOutput)
-		logger.Error(sessionPluginResultOutput.Output)
-		return
-	}
-
-	// streaming of logs is not supported for interactive commands scenario, set it to false
-	config.CloudWatchStreamingEnabled = false
-
-	p.shell.Execute(config, cancelFlag, output, dataChannel, shellProps)
+	p.sessionPlugin.Execute(config, cancelFlag, output, dataChannel)
 }
 
 // InputStreamMessageHandler passes payload byte stream to shell stdin
@@ -188,11 +159,12 @@ func (p *InteractiveCommandsPlugin) forwardMessage(log log.T, streamDataMessage 
 			PayloadType: uint32(payloadtype),     // either Output or Size
 		}
 
-		if p.shell.Ready() {
-			return p.shell.InputStreamMessageHandler(log, agentMessage)
-		} else {
+		err := p.sessionPlugin.InputStreamMessageHandler(log, agentMessage)
+		if errors.Is(err, mgsContracts.ErrHandlerNotReady) {
 			message := "Shell not yet ready for incoming messages"
 			return p.ksHelper.BuildError(message, kysplContracts.HandlerNotReady)
+		} else {
+			return err
 		}
 	} else {
 		message := fmt.Sprintf("[Keysplitting] Keysplitting Handshake is required to communicate with shell")

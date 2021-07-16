@@ -19,6 +19,11 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
+
+	"github.com/aws/amazon-ssm-agent/agent/appconfig"
+	logger "github.com/aws/amazon-ssm-agent/agent/log"
+	"github.com/aws/amazon-ssm-agent/common/identity"
 )
 
 const (
@@ -32,6 +37,11 @@ const (
 const (
 	flagPrefix = "--"
 )
+
+// package variables to store agent identity state
+var agentIdentity identity.IAgentIdentity
+var agentIdentityErr error
+var agentIdentityOnce sync.Once
 
 // CliCommands is the set of support commands
 var CliCommands map[string]CliCommand
@@ -99,4 +109,15 @@ func ValidUrl(s string) bool {
 		return true
 	}
 	return false
+}
+
+// GetAgentIdentity returns the agent identity and only initializes it once
+func GetAgentIdentity() (identity.IAgentIdentity, error) {
+	agentIdentityOnce.Do(func() {
+		log := logger.NewSilentMockLog()
+		config := appconfig.DefaultConfig()
+		selector := identity.NewDefaultAgentIdentitySelector(log)
+		agentIdentity, agentIdentityErr = identity.NewAgentIdentity(log, &config, selector)
+	})
+	return agentIdentity, agentIdentityErr
 }

@@ -15,6 +15,7 @@
 package cloudwatchlogspublisher
 
 import (
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ const (
 	dataAlreadyAcceptedException   = "DataAlreadyAcceptedException"
 	invalidSequenceTokenException  = "InvalidSequenceTokenException"
 	resourceAlreadyExistsException = "ResourceAlreadyExistsException"
+	resourceNotFoundException      = "ResourceNotFoundException"
 	defaultPollingInterval         = time.Second
 	defaultPollingWaitTime         = 200 * time.Millisecond
 	pollingBackoffMultiplier       = 2
@@ -99,6 +101,13 @@ func (cloudwatchPublisher *CloudWatchPublisher) Init() {
 
 // CloudWatchLogsEventsListener listens to cloudwatchlogs events channel
 func (cloudwatchPublisher *CloudWatchPublisher) CloudWatchLogsEventsListener() {
+	log := cloudwatchPublisher.context.Log()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Cloudwatch listener panic: %v", r)
+			log.Errorf("Stacktrace:\n%s", debug.Stack())
+		}
+	}()
 	for event := range cloudwatchlogsqueue.CloudWatchLogsEventsChannel {
 
 		switch event {
@@ -116,22 +125,17 @@ func (cloudwatchPublisher *CloudWatchPublisher) CloudWatchLogsEventsListener() {
 // createLogGroupAndStream checks if log group and log stream are present. If not, creates them
 func (cloudwatchPublisher *CloudWatchPublisher) createLogGroupAndStream(logGroup, logStream string) error {
 	log := cloudwatchPublisher.context.Log()
-	if logGroupPresent, _ := cloudwatchPublisher.cloudWatchLogsService.IsLogGroupPresent(logGroup); !logGroupPresent {
-		//Create Log Group
-		if err := cloudwatchPublisher.cloudWatchLogsService.CreateLogGroup(logGroup); err != nil {
-			// Aborting Init
-			log.Errorf("Error creating log group:%v", err)
-			return err
-		}
+	//Create Log Group
+	if err := cloudwatchPublisher.cloudWatchLogsService.CreateLogGroup(logGroup); err != nil {
+		// Aborting Init
+		log.Errorf("Error creating log group: %v", err)
+		return err
 	}
 
-	if !cloudwatchPublisher.cloudWatchLogsService.IsLogStreamPresent(logGroup, logStream) {
-		//Create Log Stream
-		if err := cloudwatchPublisher.cloudWatchLogsService.CreateLogStream(logGroup, logStream); err != nil {
-			// Aborting Init
-			log.Errorf("Error creating log stream:%v", err)
-			return err
-		}
+	if err := cloudwatchPublisher.cloudWatchLogsService.CreateLogStream(logGroup, logStream); err != nil {
+		// Aborting Init
+		log.Errorf("Error creating log stream: %v", err)
+		return err
 	}
 	return nil
 }
@@ -199,6 +203,12 @@ func (cloudwatchPublisher *CloudWatchPublisher) startPolling(sequenceToken, sequ
 	pollingShouldBackoff := false
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorf("Cloudwatch publisher poll panic: %v", r)
+				log.Errorf("Stacktrace:\n%s", debug.Stack())
+			}
+		}()
 		for {
 			pollingShouldBackoff = false
 			select {

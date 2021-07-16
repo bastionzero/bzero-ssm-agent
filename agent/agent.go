@@ -71,8 +71,7 @@ func start(log logger.T, instanceIDPtr *string, regionPtr *string, shouldCheckHi
 		return nil, err
 	}
 
-	context := context.Default(log, config, agentIdentity)
-	context = context.With("[ssm-agent-worker]")
+	context := context.Default(log, config, agentIdentity, "[ssm-agent-worker]")
 
 	//Reset password for default RunAs user if already exists
 	sessionUtil := &utility.SessionUtil{}
@@ -112,6 +111,12 @@ func start(log logger.T, instanceIDPtr *string, regionPtr *string, shouldCheckHi
 		//Starting hibernate mode
 		context.Log().Info("Entering SSM Agent hibernate - ", hibernationErr)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					context.Log().Errorf("Hibernate panic: %v", r)
+					context.Log().Errorf("Stacktrace:\n%s", debug.Stack())
+				}
+			}()
 			hibernateState.ExecuteHibernation()
 			err = startAgent(ssmAgent, context)
 		}()
@@ -152,7 +157,7 @@ func blockUntilSignaled(log logger.T) {
 
 	select {
 	case s := <-c:
-		log.Info("Got signal:", s, " value:", s.Signal)
+		log.Info("ssm-agent-worker got signal:", s, " value:", s.Signal)
 	case <-messageBusClient.RebootRequestChannel():
 		log.Info("Received core agent reboot signal")
 	}
@@ -160,6 +165,7 @@ func blockUntilSignaled(log logger.T) {
 
 // Run as a single process. Used by Unix systems and when running agent from console.
 func run(log logger.T, shouldCheckHibernation bool) {
+	log = log.WithContext("[ssm-agent-worker]")
 	defer func() {
 		// recover in case the agent panics
 		// this should handle some kind of seg fault errors.

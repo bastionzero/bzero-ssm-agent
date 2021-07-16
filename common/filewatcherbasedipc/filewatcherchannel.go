@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 
 	"github.com/aws/amazon-ssm-agent/agent/backoffconfig"
 	"github.com/aws/amazon-ssm-agent/agent/log"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -183,6 +184,11 @@ func (ch *fileWatcherChannel) CleanupOwnModeFiles() {
 			}
 		}
 	}
+}
+
+// GetPath returns IPC filepath
+func (ch *fileWatcherChannel) GetPath() string {
+	return ch.path
 }
 
 func (ch *fileWatcherChannel) removeMessage(filePath string) {
@@ -373,7 +379,16 @@ func getFileSize(filepath string) (fileSize int64, err error) {
 // make sure this go routine not leaking
 func (ch *fileWatcherChannel) watch() {
 	log := ch.logger
-	log.Debugf("%v listener started on path: %v", ch.mode, ch.path)
+	defer log.Infof("%v listener stopped on path: %v", ch.mode, ch.path)
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("File watch panic: %v", r)
+			log.Errorf("Stacktrace:\n%s", debug.Stack())
+		}
+	}()
+
+	log.Infof("%v listener started on path: %v", ch.mode, ch.path)
 	//drain all the current messages in the dir
 	ch.consumeAll()
 	for {

@@ -22,7 +22,7 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/update/processor"
-	"github.com/aws/amazon-ssm-agent/agent/updateutil"
+	"github.com/aws/amazon-ssm-agent/agent/updateutil/updateconstants"
 	"github.com/aws/amazon-ssm-agent/common/identity"
 	identityMocks "github.com/aws/amazon-ssm-agent/common/identity/mocks"
 	"github.com/stretchr/testify/assert"
@@ -36,22 +36,18 @@ type stubUpdater struct {
 	returnCleanupError bool
 }
 
-func (u *stubUpdater) StartOrResumeUpdate(log logger.T, context *processor.UpdateContext) (err error) {
+func (u *stubUpdater) StartOrResumeUpdate(log logger.T, updateDetail *processor.UpdateDetail) (err error) {
 	if u.returnUpdateError {
 		return fmt.Errorf("Fail update")
 	}
 	return nil
 }
 
-func (u *stubUpdater) InitializeUpdate(log logger.T, detail *processor.UpdateDetail) (context *processor.UpdateContext, err error) {
-	context = &processor.UpdateContext{}
-	context.Current = &processor.UpdateDetail{}
-	context.Current.StandardOut = "output message"
-
-	return context, nil
+func (u *stubUpdater) InitializeUpdate(log logger.T, updateDetail *processor.UpdateDetail) (err error) {
+	return nil
 }
 
-func (u *stubUpdater) CleanupUpdate(log logger.T, context *processor.UpdateContext) (err error) {
+func (u *stubUpdater) CleanupUpdate(log logger.T, updateDetail *processor.UpdateDetail) (err error) {
 	if u.returnCleanupError {
 		return fmt.Errorf("Cleanup update failed.")
 	}
@@ -59,9 +55,9 @@ func (u *stubUpdater) CleanupUpdate(log logger.T, context *processor.UpdateConte
 }
 
 func (u *stubUpdater) Failed(
-	context *processor.UpdateContext,
+	updateDetail *processor.UpdateDetail,
 	log logger.T,
-	code updateutil.ErrorCode,
+	code updateconstants.ErrorCode,
 	errMessage string,
 	noRollbackMessage bool) (err error) {
 	return nil

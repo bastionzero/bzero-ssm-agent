@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -30,13 +31,16 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/fileutil"
 	"github.com/aws/amazon-ssm-agent/agent/log"
+	"github.com/aws/amazon-ssm-agent/agent/platform"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 )
 
 const (
 	// envVar* constants are names of environment variables set for processes executed by ssm agent and should start with AWS_SSM_
-	envVarInstanceID = "AWS_SSM_INSTANCE_ID"
-	envVarRegionName = "AWS_SSM_REGION_NAME"
+	envVarInstanceID      = "AWS_SSM_INSTANCE_ID"
+	envVarRegionName      = "AWS_SSM_REGION_NAME"
+	envVarPlatformName    = "AWS_SSM_PLATFORM_NAME"
+	envVarPlatformVersion = "AWS_SSM_PLATFORM_VERSION"
 )
 
 // T is the interface type for ShellCommandExecuter.
@@ -291,9 +295,9 @@ func ExecuteCommand(
 	// configure environment variables
 	prepareEnvironment(context, command, envVars)
 
-	log.Debug()
 	log.Debugf("Running in directory %v, command: %v %v", workingDir, commandName, commandArguments)
-	log.Debug()
+
+	quiesce()
 	if err = command.Start(); err != nil {
 		log.Error("error occurred starting the command", err)
 		exitCode = 1
@@ -408,9 +412,9 @@ func StartCommand(context context.T,
 	// configure environment variables
 	prepareEnvironment(context, command, make(map[string]string))
 
-	log.Debug()
 	log.Debugf("Running in directory %v, command: %v %v", workingDir, commandName, commandArguments)
-	log.Debug()
+
+	quiesce()
 	if err = command.Start(); err != nil {
 		log.Error("error occurred starting the command: ", err)
 		exitCode = 1
@@ -433,6 +437,12 @@ func StartCommand(context context.T,
 // process of the command. This will unblock the command.Wait() call.
 // If the task completed successfully this method returns with no action.
 func killProcessOnCancel(log log.T, command *exec.Cmd, cancelStdout chan bool, cancelStderr chan bool, cancelFlag task.CancelFlag, signal *timeoutSignal) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Kill process on cancel panic: %v", r)
+			log.Errorf("Stacktrace:\n%s", debug.Stack())
+		}
+	}()
 	cancelFlag.Wait()
 	if cancelFlag.Canceled() {
 		log.Debug("Process cancelled. Attempting to stop process.")
@@ -453,7 +463,9 @@ func killProcessOnCancel(log log.T, command *exec.Cmd, cancelStdout chan bool, c
 
 // prepareEnvironment adds ssm agent standard environment variables or environment variables defined by customer/other plugins to the command
 func prepareEnvironment(context context.T, command *exec.Cmd, envVars map[string]string) {
+	log := context.Log()
 	env := os.Environ()
+
 	for key, val := range envVars {
 		env = append(env, fmtEnvVariable(key, val))
 	}
@@ -462,6 +474,16 @@ func prepareEnvironment(context context.T, command *exec.Cmd, envVars map[string
 	}
 	if region, err := context.Identity().Region(); err == nil {
 		env = append(env, fmtEnvVariable(envVarRegionName, region))
+	}
+	if platformName, err := platform.PlatformName(log); err == nil {
+		env = append(env, fmtEnvVariable(envVarPlatformName, platformName))
+	} else {
+		log.Warnf("There was an error retrieving the platformName while setting the environment variables: %v", err)
+	}
+	if platformVersion, err := platform.PlatformVersion(log); err == nil {
+		env = append(env, fmtEnvVariable(envVarPlatformVersion, platformVersion))
+	} else {
+		log.Warnf("There was an error retrieving the platformVersion while setting the environment variables: %v", err)
 	}
 	command.Env = env
 

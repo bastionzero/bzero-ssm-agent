@@ -92,7 +92,8 @@ func getAppConfigPath() (path string, err error) {
 func DefaultConfig() SsmagentConfig {
 
 	var credsProfile = CredentialProfile{
-		ShareCreds: true,
+		ShareCreds:        true,
+		KeyAutoRotateDays: defaultProfileKeyAutoRotateDays,
 	}
 	var s3 S3Cfg
 	var mds = MdsCfg{
@@ -112,6 +113,8 @@ func DefaultConfig() SsmagentConfig {
 		AssociationLogsRetentionDurationHours: DefaultAssociationLogsRetentionDurationHours,
 		RunCommandLogsRetentionDurationHours:  DefaultRunCommandLogsRetentionDurationHours,
 		SessionLogsRetentionDurationHours:     DefaultSessionLogsRetentionDurationHours,
+		PluginLocalOutputCleanup:              DefaultPluginOutputRetention,
+		OrchestrationDirectoryCleanup:         DefaultOrchestrationDirCleanup,
 	}
 	var agent = AgentInfo{
 		Name:                                    "amazon-ssm-agent",
@@ -129,6 +132,10 @@ func DefaultConfig() SsmagentConfig {
 		Lang:    "en-US",
 		Version: "1",
 	}
+	var identity = IdentityCfg{
+		ConsumptionOrder: DefaultIdentityConsumptionOrder,
+		CustomIdentities: []*CustomIdentity{},
+	}
 	var birdwatcher BirdwatcherCfg
 	var kms KmsConfig
 
@@ -142,6 +149,7 @@ func DefaultConfig() SsmagentConfig {
 		S3:          s3,
 		Birdwatcher: birdwatcher,
 		Kms:         kms,
+		Identity:    identity,
 	}
 
 	return ssmagentCfg

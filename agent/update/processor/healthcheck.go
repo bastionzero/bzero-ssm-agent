@@ -24,6 +24,7 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/health"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/ssm"
+	"github.com/aws/amazon-ssm-agent/agent/updateutil/updateconstants"
 )
 
 const (
@@ -45,6 +46,8 @@ const (
 	updateFailed = "UpdateFailed"
 	// testFailed represents tests fail during update
 	testFailed = "TestFailed"
+	// noAlarm represents suffix which will be added to unimportant error messages
+	noAlarm = "NoAlarm"
 )
 
 var ssmSvc ssm.Service
@@ -79,8 +82,8 @@ func getSsmSvc(context context.T) (ssm.Service, error) {
 }
 
 // prepareHealthStatus prepares health status payload
-func PrepareHealthStatus(update *UpdateDetail, errorCode string, additionalStatus string) (result string) {
-	switch update.State {
+func PrepareHealthStatus(updateDetail *UpdateDetail, errorCode string, additionalStatus string) (result string) {
+	switch updateDetail.State {
 	default:
 		result = active
 	case NotStarted:
@@ -92,14 +95,14 @@ func PrepareHealthStatus(update *UpdateDetail, errorCode string, additionalStatu
 	case Installed:
 		result = updateInProgress
 	case Completed:
-		if update.Result == contracts.ResultStatusFailed {
+		if updateDetail.Result == contracts.ResultStatusFailed {
 			result = updateFailed
 		}
-		if update.Result == contracts.ResultStatusSuccess {
+		if updateDetail.Result == contracts.ResultStatusSuccess {
 			result = updateSucceeded
 		}
 	case TestExecution:
-		if update.Result == contracts.ResultStatusTestFailure {
+		if updateDetail.Result == contracts.ResultStatusTestFailure {
 			result = testFailed
 		}
 	case Rollback:
@@ -108,12 +111,21 @@ func PrepareHealthStatus(update *UpdateDetail, errorCode string, additionalStatu
 		result = rollBackCompleted
 	}
 
+	// please maintain the if condition order.
+	if updateDetail.SelfUpdate {
+		result = fmt.Sprintf("%v_%v", result, updateconstants.SelfUpdatePrefix)
+	}
+
 	if len(errorCode) > 0 {
 		result = fmt.Sprintf("%v_%v", result, errorCode)
 	}
 
 	if len(additionalStatus) > 0 {
 		result = fmt.Sprintf("%v-%v", result, additionalStatus)
+	}
+
+	if _, ok := updateconstants.NonAlarmingErrors[updateconstants.ErrorCode(errorCode)]; ok {
+		result = fmt.Sprintf("%v-%v", result, noAlarm)
 	}
 
 	return result

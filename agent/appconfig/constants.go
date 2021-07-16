@@ -14,7 +14,10 @@
 // Package appconfig manages the configuration of the agent.
 package appconfig
 
-import "os"
+import (
+	"os"
+	"syscall"
+)
 
 const (
 	// Agent defaults
@@ -54,6 +57,24 @@ const (
 	DefaultLocationOfCorrupt     = "corrupt"
 	DefaultLocationOfState       = "state"
 	DefaultLocationOfAssociation = "association"
+
+	// PluginLocalOutputCleanup
+	// Delete plugin output file locally after plugin execution
+	PluginLocalOutputCleanupAfterExecution = "after-execution"
+	// Delete plugin output locally after successful s3 or cloudWatch upload
+	PluginLocalOutputCleanupAfterUpload = "after-upload"
+
+	// OrchestrationDirCleanup
+	// Deletes the orchestration folder for successful and failed document execution.
+	OrchestrationDirCleanupForSuccessFailedCommand = "clean-success-failed"
+	// Deletes the orchestration folder only for successful document execution.
+	OrchestrationDirCleanupForSuccessCommand = "clean-success"
+	// Don't delete orchestration folder after execution
+	DefaultOrchestrationDirCleanup = "default"
+
+	// Don't delete logs immediately after execution. Fall back to AssociationLogsRetentionDurationHours,
+	// RunCommandLogsRetentionDurationHours, and SessionLogsRetentionDurationHours
+	DefaultPluginOutputRetention = "default"
 
 	//aws-ssm-agent state and orchestration logs duration for Run Command and Association
 	DefaultAssociationLogsRetentionDurationHours           = 24  // 1 day default retention
@@ -105,14 +126,19 @@ const (
 	defaultLongRunningWorkerMonitorIntervalSecondsMin = 30
 	defaultLongRunningWorkerMonitorIntervalSecondsMax = 1800
 
+	defaultProfileKeyAutoRotateDays    = 0
+	defaultProfileKeyAutoRotateDaysMin = 0
+	defaultProfileKeyAutoRotateDaysMax = 365
+
 	// Permissions defaults
 	//NOTE: Limit READ, WRITE and EXECUTE access to administrators/root.
 	ReadWriteAccess        = 0600
 	ReadWriteExecuteAccess = 0700
 
 	// Common file flags when opening/creating files
-	FileFlagsCreateOrAppend   = os.O_APPEND | os.O_WRONLY | os.O_CREATE
-	FileFlagsCreateOrTruncate = os.O_TRUNC | os.O_WRONLY | os.O_CREATE
+	FileFlagsCreateOrAppend          = os.O_APPEND | os.O_WRONLY | os.O_CREATE
+	FileFlagsCreateOrTruncate        = os.O_TRUNC | os.O_WRONLY | os.O_CREATE
+	FileFlagsCreateOrAppendReadWrite = os.O_APPEND | os.O_RDWR | os.O_CREATE
 
 	// ExitCodes
 	SuccessExitCode = 0
@@ -171,7 +197,8 @@ const (
 	// PluginNameAwsApplications is the name of the Applications plugin
 	PluginNameAwsApplications = "aws:applications"
 
-	AppConfigFileName    = "amazon-ssm-agent.json"
+	AppConfigFileName = "amazon-ssm-agent.json"
+
 	SeelogConfigFileName = "seelog.xml"
 
 	// Output truncation limits
@@ -187,6 +214,9 @@ const (
 
 	// PluginNameInteractiveCommands is the name for session manager interactive commands plugin.
 	PluginNameInteractiveCommands = "InteractiveCommands"
+
+	// PluginNameNonInteractiveCommands is the name for session manager non-interactive commands plugin.
+	PluginNameNonInteractiveCommands = "NonInteractiveCommands"
 
 	// PluginNamePort is the name for session manager port plugin.
 	PluginNamePort = "Port"
@@ -216,3 +246,26 @@ var SupportedDocumentVersions = map[string]struct{}{
 var SupportedSessionDocumentVersions = map[string]struct{}{
 	"1.0": {},
 }
+
+// All the control signals to handles interrupt input from SSM CLI
+// SIGINT captures Ctrl+C
+// SIGQUIT captures Ctrl+\
+var ByteControlSignalsLinux = map[byte]os.Signal{
+	'\003': syscall.SIGINT,
+	'\x1c': syscall.SIGQUIT,
+}
+
+// All the input control messages that can be transformed to SIGKILL signal on Windows platforms
+// Windows platforms do not support SIGINT or SIGQUIT signals.
+// It only processes SIGKILL signal, which is translated to taskkill command on the process.
+var ByteControlSignalsWindows = map[byte]os.Signal{
+	'\003': syscall.SIGKILL,
+	'\x1c': syscall.SIGKILL,
+}
+
+// DefaultIdentityConsumptionOrder defines the default order identities will be consumed
+var DefaultIdentityConsumptionOrder = []string{
+	"OnPrem", "EC2", "CustomIdentity",
+}
+
+var DefaultCustomIdentityCredentialsProvider = "DEFAULT"

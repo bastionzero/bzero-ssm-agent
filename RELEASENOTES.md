@@ -4,6 +4,102 @@
 
 3.0.732.18
 ===============
+- Added config option to delete orchestration folder
+- Added snapcraft packaging config
+- Added workaround for aws:runDocument status bug
+- Added improved handling of file closure
+- Added support for go mod and updated build to use go 1.16.4
+- Fixed bug parsing vpce s3 urls
+- Refactored use of agent identity in agent cli
+- Updated check if agent is running as windows service
+- Updated handling of session cancellation to still send output to client side
+- Updated interactive session exit code logic to match non-interactive mode
+- Updated vendor dependencies
+
+3.0.1295.0
+===============
+- Added configurable custom identity and identity consumption order
+- Added cross-account domain join
+- Added cleanup for older versions of updater artifacts
+- Added a workaround for MacOS kernel bug that sometimes kept RunCommand from launching
+- Added a workaround for log file contention on Windows
+- Added synchronization to RunCommand service stop
+- Changed hibernation log level  
+- MacOS executables are now signed
+- Removed delay in non-interactive session type
+
+3.0.1209.0
+===============
+- Fixed issue where registration file is not removed when registration is cleared
+- Removed unnecessary CloudWatch Log api calls
+- Added support for IMDSv2 in Windows AD domain join plugin
+
+3.0.1181.0
+===============
+- Added support for digest authorization in downloadContent plugin
+- Added missing defer close for windows service in updater
+- Added support to disable onprem hardware similarity check
+- Fixed windows random halts issue
+- Refactored windows startup
+- Refactored task pool to dynamically dispatch goroutines
+
+3.0.1124.0
+===============
+- Added a check for broken symlink after update
+- Added support for NonInteractiveCommands session type on Linux and Windows platforms
+- Added lint-all flag to makefile
+- Changed Inventory plugin billinginfo to use IMDSv2
+- Fixed indefinite retries for ResourceError during CWLogging
+- Fixed go vet call in checkstyle.sh
+- Fixed inter process communication log line
+- Fixed a bug where CloudWatch logs were not being uploaded
+- Fixed timer and goroutine leaks
+- Fixed an issue where document workers on Windows were not exiting
+
+3.0.1031.0
+===============
+- Added test-all flag to the makefile
+- Added support for onprem private key auto rotation
+- Added config to remove plugin output files after upload to s3
+- Added update precondition for upcoming 3.1 release
+- Fixed cloudwatch windows where TLS 1.0 is disabled
+- Fixed document cloudwatch upload when CreateLogStream permissions were missing left instances stuck in terminating
+- Fixed domain join windows EC2 instances where TLS 1.0 is disabled
+- Fixed domain join script for .local domain names
+- Fixed domain join script to exit when domain is already joined
+- Fixed panic issue in windows startup script when executing powershell command
+- Fixed session manager issue on MacOS for root and home path
+- Removed IMDS call in domain join script
+- Refactored update plugin and updater interaction
+
+3.0.882.0
+===============
+- Added jitter to first control channel call
+- Added dedicated folder for plugins
+- Added option to overwrite corrupt shared credentials
+
+3.0.854.0
+===============
+- Added $HOME env variable for root user when runAsElevated is true in session
+- Added CREAD flag in serial port control flags on linux
+- Added PlatformName and PlatformVersion as env variables for aws:runShellScript
+- Added support for macOS updater
+- Added v2.2 document support in updater
+- Added defer recover statements
+- Fixed inventory error log when dpkg is not available
+- Fixed ssm-cli logging to stdout
+- Removed consideration of unimportant error codes in service side
+- Updated ec2 credential caching time to ~1 hour
+- Updated service query logic for Windows
+- Updated golang sys package dependency
+
+3.0.755.0
+===============
+- Fix fallback logic for MGS endpoint generation
+- Fix regional endpoint generation
+
+3.0.732.0
+===============
 - Fix bug in document parameter expansion
 - Fix datachannel to wait for empty message buffer before closing
 - Fix for hung Session Manager sessions

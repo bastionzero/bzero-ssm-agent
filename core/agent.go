@@ -24,6 +24,7 @@ import (
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
+	"github.com/aws/amazon-ssm-agent/agent/proxyconfig"
 	"github.com/aws/amazon-ssm-agent/core/app"
 	"github.com/aws/amazon-ssm-agent/core/app/bootstrap"
 	"github.com/aws/amazon-ssm-agent/core/ipc/messagebus"
@@ -31,27 +32,34 @@ import (
 )
 
 const (
-	activationCodeFlag      = "code"
-	activationIDFlag        = "id"
-	regionFlag              = "region"
-	orgIDFlag               = "org"
-	orgProviderFlag         = "orgProvider"
-	registerFlag            = "register"
-	versionFlag             = "version"
-	fingerprintFlag         = "fingerprint"
-	similarityThresholdFlag = "similarityThreshold"
-	bzeroInfoFlag           = "bzeroInfo"
+	activationCodeFlag         = "code"
+	activationIDFlag           = "id"
+	regionFlag                 = "region"
+	registerFlag               = "register"
+	disableSimilarityCheckFlag = "disableSimilarityCheck"
+	versionFlag                = "version"
+	fingerprintFlag            = "fingerprint"
+	similarityThresholdFlag    = "similarityThreshold"
+	orgIDFlag                  = "org"
+	orgProviderFlag            = "orgProvider"
+	bzeroInfoFlag              = "bzeroInfo"
 )
 
 var (
-	activationCode, activationID, region, orgID, orgProvider    string
-	register, clear, force, fpFlag, agentVersionFlag, bzeroInfo bool
-	similarityThreshold                                         int
-	registrationFile                                            = filepath.Join(appconfig.DefaultDataStorePath, "registration")
+	activationCode, activationID, region, orgID, orgProvider                            string
+	register, clear, force, fpFlag, agentVersionFlag, disableSimilarityCheck, bzeroInfo bool
+	similarityThreshold                                                                 int
+	registrationFile                                                                    = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )
 
 func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	log.WriteEvent(logger.AgentTelemetryMessage, "", logger.AmazonAgentStartEvent)
+
+	proxyConfig := proxyconfig.SetProxyConfig(log)
+	log.Infof("Proxy environment variables:")
+	for key, value := range proxyConfig {
+		log.Infof(key + ": " + value)
+	}
 
 	bs := bootstrap.NewBootstrap(log, filesystem.NewFileSystem())
 	context, err := bs.Init()
@@ -85,7 +93,7 @@ func blockUntilSignaled(log logger.T) {
 	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)
 
 	s := <-c
-	log.Info("Got signal:", s, " value:", s.Signal)
+	log.Info("amazon-ssm-agent got signal:", s, " value:", s.Signal)
 }
 
 // Run as a single process. Used by Unix systems and when running agent from console.

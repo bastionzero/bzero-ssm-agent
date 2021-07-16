@@ -21,12 +21,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/cli/cliutil"
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
-	logger "github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/version"
-	"github.com/aws/amazon-ssm-agent/common/identity"
 )
 
 const (
@@ -79,11 +76,7 @@ func (c *GetInstanceInformationCommand) Execute(subcommands []string, parameters
 		return errors.New(strings.Join(validation, "\n")), ""
 	}
 
-	// TODO: Move this higher in the ssm-cli
-	log := logger.NewMockLog()
-	config, _ := appconfig.Config(true)
-	selector := identity.NewDefaultAgentIdentitySelector(log)
-	agentIdentity, err := identity.NewAgentIdentity(log, &config, selector)
+	agentIdentity, err := cliutil.GetAgentIdentity()
 	if err != nil {
 		return err, ""
 	}

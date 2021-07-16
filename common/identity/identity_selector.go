@@ -15,6 +15,7 @@ package identity
 
 import (
 	"fmt"
+
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 )
@@ -22,16 +23,16 @@ import (
 // NewDefaultAgentIdentitySelector creates a instance of a default agent identity selector
 func NewDefaultAgentIdentitySelector(log log.T) IAgentIdentitySelector {
 	return &defaultAgentIdentitySelector{
-		log:                        log,
+		log: log,
 	}
 }
 
 // NewInstanceIDRegionAgentIdentitySelector creates a instance of a default agent identity selector
 func NewInstanceIDRegionAgentIdentitySelector(log log.T, instanceID, region string) IAgentIdentitySelector {
 	return &instanceIDRegionAgentIdentitySelector{
-		log:                        log,
-		instanceID:                 instanceID,
-		region:                     region,
+		log:        log,
+		instanceID: instanceID,
+		region:     region,
 	}
 }
 
@@ -41,12 +42,12 @@ func newAgentIdentityInner(log log.T, config *appconfig.SsmagentConfig, selector
 	var selectedIdentityFunc createIdentityFunc
 	var found bool
 
-	if config.Agent.ContainerMode {
+	// For backwards compatibility, if container mode is enabled and the identity consumption order is not overwritten in the config, default to ECS identity only
+	if config.Agent.ContainerMode && isDefaultIdentityConsumptionOrder(identitySelectionOrder, appconfig.DefaultIdentityConsumptionOrder) {
 		if selectedIdentityFunc, found = identityGenerators["ECS"]; !found {
 			return nil, fmt.Errorf("ECS identity does not exist")
 		}
 
-		log.Info("Agent will take identity from ECS")
 		agentIdentity = selector.selectAgentIdentity(selectedIdentityFunc(log, config), "ECS")
 		if agentIdentity == nil {
 			return nil, fmt.Errorf("failed to get identity from ECS metadata")
@@ -61,14 +62,14 @@ func newAgentIdentityInner(log log.T, config *appconfig.SsmagentConfig, selector
 
 	// Loop over all identity options and select the one that matches first
 	for _, identityKey := range identitySelectionOrder {
-		log.Debugf("Checking if agent has %s identity", identityKey)
+		log.Debugf("Checking if agent has %s identity type", identityKey)
 		if selectedIdentityFunc, found = identityGenerators[identityKey]; !found {
-			log.Warnf("Identity '%s' does not exist", identityKey)
+			log.Warnf("Identity type '%s' does not exist", identityKey)
 			continue
 		}
 
 		// Testing if identity can be assumed
-		agentIdentity =  selector.selectAgentIdentity(selectedIdentityFunc(log, config), identityKey)
+		agentIdentity = selector.selectAgentIdentity(selectedIdentityFunc(log, config), identityKey)
 		if agentIdentity != nil {
 			log.Infof("Agent will take identity from %s", identityKey)
 			return &agentIdentityCacher{
@@ -83,15 +84,12 @@ func newAgentIdentityInner(log log.T, config *appconfig.SsmagentConfig, selector
 }
 
 func NewAgentIdentity(log log.T, config *appconfig.SsmagentConfig, selector IAgentIdentitySelector) (identity IAgentIdentity, err error) {
-	// TODO: move order to config after removing container mode flag
-	var identitySelectionOrder = []string{"OnPrem", "EC2"}
-
 	for i := 0; i < MaxRetriesIdentitySelector; i++ {
-		identity, err = newAgentIdentityInner(log, config, selector, identitySelectionOrder, allIdentityGenerators)
+		identity, err = newAgentIdentityInner(log, config, selector, config.Identity.ConsumptionOrder, allIdentityGenerators)
 		if err == nil {
 			break
 		}
-		if i + 1 < MaxRetriesIdentitySelector {
+		if i+1 < MaxRetriesIdentitySelector {
 			log.Errorf("failed to find identity, retrying: %v", err)
 		}
 	}
@@ -146,4 +144,20 @@ func (d *instanceIDRegionAgentIdentitySelector) selectAgentIdentity(agentIdentit
 		return agentIdentity
 	}
 	return nil
+}
+
+func isDefaultIdentityConsumptionOrder(identitySelectionOrder, defaultIdentitySelectionOrder []string) bool {
+	// If lengths are not the same, the identity selection order is not default
+	if len(identitySelectionOrder) != len(defaultIdentitySelectionOrder) {
+		return false
+	}
+
+	// If any element does not match in the two lists, the identity selection order is not default
+	for i := 0; i < len(identitySelectionOrder); i++ {
+		if identitySelectionOrder[i] != defaultIdentitySelectionOrder[i] {
+			return false
+		}
+	}
+
+	return true
 }

@@ -93,6 +93,15 @@ Please follow the user guide to [copy and install the SSM Agent](http://docs.aws
 * rpm and dpkg artifacts are under packaging
 * build scripts are under Tools/src
 
+### Linting
+
+To lint the entire module call the `lint-all` target. This executes golangci-lint on all packages in the module.
+You can configure golangci-lint with different linters using the `.golangci.yml` file.
+
+For golangci-lint installation instructions see https://golangci-lint.run/usage/install/
+For more information on the golangci-lint configuration file see https://golangci-lint.run/usage/configuration/
+For more information on the linters used see https://golangci-lint.run/usage/linters/
+
 ### GOPATH
 
 To use vendor dependencies, the suggested GOPATH format is `:<packagesource>/vendor:<packagesource>`
@@ -120,6 +129,7 @@ The following targets are available. Each may be run with `make <target>`.
 | `build-darwin-386`       | `build-darwin-386` builds the agent for execution in the Darwin 386 environment |
 | `build-arm`              | `build-arm` builds the agent for execution in the arm environment |
 | `build-arm64`            | `build-arm64` builds the agent for execution in the arm64 environment |
+| `lint-all`               | `lint-all` runs golangci-lint on all packages. golangci-lint is configured by .golangci.yml |
 | `package-rpm`            | `package-rpm` builds the agent and packages it into a RPM package for Linux amd64 based distributions |
 | `package-deb`            | `package-deb` builds the agent and packages it into a DEB package Debian amd64 based distributions |
 | `package-win`            | `package-win` builds the agent and packages it into a ZIP package Windows amd64 based distributions |
@@ -153,6 +163,10 @@ To set up your own custom configuration for the agent:
     * ShareCreds (boolean)
         * Default: true
     * ShareProfile (string)
+    * ForceUpdateCreds (boolean) - overwrite shared credentials file if existing one cannot be parsed
+        * Default: false
+    * KeyAutoRotateDays (int) - defines the maximum age in days for on-prem private key, default value might change to 30 in the close future
+        * Default: 0 (never rotate)
 * Mds - represents configuration for Message delivery service (MDS) where agent listens for incoming messages
     * CommandWorkersLimit (int)
         * Default: 5
@@ -172,6 +186,14 @@ To set up your own custom configuration for the agent:
         * Default: 336
     * SessionLogsRetentionDurationHours (int)
         * Default: 336
+    * PluginLocalOutputCleanup (string) - Configure when after execution it is safe to delete local plugin output logs in orchestration folder
+        * Default: "" - Don't delete logs immediately after execution. Fall back to AssociationLogsRetentionDurationHours, RunCommandLogsRetentionDurationHours, and SessionLogsRetentionDurationHours 
+        * OptionalValue: "after-execution" - Delete plugin output file locally after plugin execution
+        * OptionalValue: "after-upload" - Delete plugin output locally after successful s3 or cloudWatch upload
+    * OrchestrationDirectoryCleanup (string) - Configure only when it is safe to delete orchestration folder after document execution. This config overrides PluginLocalOutputCleanup when set.
+        * Default: "" - Don't delete orchestration folder after execution
+        * OptionalValue: "clean-success" - Deletes the orchestration folder only for successful document executions.
+        * OptionalValue: "clean-success-failed" - Deletes the orchestration folder for successful and failed document executions.
 * Mgs - represents configuration for Message Gateway service
     * Region (string)
     * Endpoint (string)

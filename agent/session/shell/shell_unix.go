@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -32,7 +33,9 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	agentContracts "github.com/aws/amazon-ssm-agent/agent/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
+	mgsConfig "github.com/aws/amazon-ssm-agent/agent/session/config"
 	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
+	"github.com/aws/amazon-ssm-agent/agent/session/shell/constants"
 	"github.com/aws/amazon-ssm-agent/agent/session/shell/execcmd"
 	"github.com/aws/amazon-ssm-agent/agent/session/utility"
 	"github.com/creack/pty"
@@ -49,33 +52,34 @@ const (
 	newLineCharacter      = "\n"
 	catCmd                = "cat"
 	scriptFlag            = "-c"
-	homeEnvVariable       = "HOME=/home/"
 	groupsIdentifier      = "groups="
 )
 
-//StartPty starts pty and provides handles to stdin and stdout
+// StartCommandExecutor starts command execution in different behaviors based on plugin type.
+// For Standard_Stream and InteractiveCommands plugins, StartCommandExecutor starts pty and provides handles to stdin and stdout.
+// For NonInteractiveCommands plugin, StartCommandExecutor defines a command executor with native os.Exec, without assigning stdin.
 // isSessionLogger determines whether its a customer shell or shell used for logging.
-func StartPty(
+func StartCommandExecutor(
 	log log.T,
 	shellProps mgsContracts.ShellProperties,
 	isSessionLogger bool,
 	config agentContracts.Configuration,
 	plugin *ShellPlugin) (err error) {
 
-	log.Info("Starting pty")
+	log.Info("Starting command executor")
 	//Start the command with a pty
 	var cmd *exec.Cmd
 
-	appConfig, _ := appconfig.Config(false)
+	appConfig := plugin.context.AppConfig()
 
-	if strings.TrimSpace(shellProps.Linux.Commands) == "" || isSessionLogger {
+	if strings.TrimSpace(constants.GetShellCommand(shellProps)) == "" || isSessionLogger {
 
 		cmd = exec.Command("sh")
 
 	} else {
-		if appConfig.Agent.ContainerMode {
+		if appConfig.Agent.ContainerMode || appconfig.PluginNameNonInteractiveCommands == plugin.name {
 
-			commands, err := shlex.Split(shellProps.Linux.Commands)
+			commands, err := shlex.Split(constants.GetShellCommand(shellProps))
 			if err != nil {
 				log.Errorf("Failed to parse commands input: %s\n", err)
 				return fmt.Errorf("Failed to parse commands input: %s\n", err)
@@ -87,7 +91,7 @@ func StartPty(
 			}
 
 		} else {
-			commandArgs := append(utility.ShellPluginCommandArgs, shellProps.Linux.Commands)
+			commandArgs := append(utility.ShellPluginCommandArgs, constants.GetShellCommand(shellProps))
 			cmd = exec.Command("sh", commandArgs...)
 		}
 	}
@@ -104,7 +108,7 @@ func StartPty(
 	}
 
 	var sessionUser string
-	if !shellProps.Linux.RunAsElevated && !isSessionLogger && !appConfig.Agent.ContainerMode {
+	if !constants.GetRunAsElevated(shellProps) && !isSessionLogger && !appConfig.Agent.ContainerMode {
 		// We get here only when its a customer shell that needs to be started in a specific user mode.
 
 		u := &utility.SessionUtil{}
@@ -137,18 +141,37 @@ func StartPty(
 		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uid, Gid: gid, Groups: groups, NoSetGroups: false}
 
 		// Setting home environment variable for RunAs user
-		runAsUserHomeEnvVariable := homeEnvVariable + sessionUser
+		runAsUserHomeEnvVariable := constants.HomeEnvVariable + sessionUser
 		cmd.Env = append(cmd.Env, runAsUserHomeEnvVariable)
 	}
 
-	ptyFile, err = pty.Start(cmd)
-	if err != nil {
-		log.Errorf("Failed to start pty: %s\n", err)
-		return fmt.Errorf("Failed to start pty: %s\n", err)
+	if constants.GetRunAsElevated(shellProps) {
+		cmd.Env = append(cmd.Env, constants.RootHomeEnvVariable)
 	}
 
-	plugin.stdin = ptyFile
-	plugin.stdout = ptyFile
+	if appconfig.PluginNameNonInteractiveCommands == plugin.name {
+		outputPath := filepath.Join(config.OrchestrationDirectory, mgsConfig.ExecOutputFileName)
+		outputWriter, err := os.OpenFile(outputPath, appconfig.FileFlagsCreateOrAppendReadWrite, appconfig.ReadWriteAccess)
+		if err != nil {
+			return fmt.Errorf("Failed to open file for writing command output. error: %s\n", err)
+		}
+		outputReader, err := os.Open(outputPath)
+		if err != nil {
+			return fmt.Errorf("Failed to read command output from file %s. error: %s\n", outputPath, err)
+		}
+		cmd.Stdout = outputWriter
+		cmd.Stderr = outputWriter
+		plugin.stdin = nil
+		plugin.stdout = outputReader
+	} else {
+		ptyFile, err = pty.Start(cmd)
+		if err != nil {
+			log.Errorf("Failed to start pty: %s\n", err)
+			return fmt.Errorf("Failed to start pty: %s\n", err)
+		}
+		plugin.stdin = ptyFile
+		plugin.stdout = ptyFile
+	}
 	plugin.runAsUser = sessionUser
 	plugin.execCmd = execcmd.NewExecCmd(cmd)
 
@@ -157,6 +180,9 @@ func StartPty(
 
 //stop closes pty file.
 func (p *ShellPlugin) stop(log log.T) (err error) {
+	if ptyFile == nil {
+		return nil
+	}
 	log.Info("Stopping pty")
 	if err := ptyFile.Close(); err != nil {
 		if err, ok := err.(*os.PathError); ok && err.Err != os.ErrClosed {
@@ -168,6 +194,9 @@ func (p *ShellPlugin) stop(log log.T) (err error) {
 
 //SetSize sets size of console terminal window.
 func SetSize(log log.T, ws_col, ws_row uint32) (err error) {
+	if ptyFile == nil {
+		return nil
+	}
 	winSize := pty.Winsize{
 		Cols: uint16(ws_col),
 		Rows: uint16(ws_row),
@@ -252,7 +281,9 @@ func (p *ShellPlugin) runShellProfile(log log.T, config agentContracts.Configura
 	if strings.TrimSpace(config.ShellProfile.Linux) == "" {
 		return nil
 	}
-
+	if p.stdin == nil {
+		return nil
+	}
 	if _, err := p.stdin.Write([]byte(config.ShellProfile.Linux + newLineCharacter)); err != nil {
 		log.Errorf("Unable to write to stdin, err: %v.", err)
 		return err
@@ -293,6 +324,9 @@ func (p *ShellPlugin) generateLogData(log log.T, config agentContracts.Configura
 
 // isLogStreamingSupported checks if streaming of logs is supported since it depends on PowerShell's transcript logging
 func (p *ShellPlugin) isLogStreamingSupported(log log.T) (logStreamingSupported bool, err error) {
+	if appconfig.PluginNameNonInteractiveCommands == p.name {
+		return false, nil
+	}
 	return true, nil
 }
 
@@ -312,6 +346,7 @@ var checkForLoggingInterruption = func(log log.T, ipcFile *os.File, plugin *Shel
 	// Enable append only mode for the ipcTempFile to protect it from being modified
 	u := &utility.SessionUtil{}
 	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 	if err := u.SetAttr(ipcFile, utility.FS_APPEND_FL); err != nil {
 		log.Debugf("Unable to set FS_APPEND_FL flag, %v", err)
 		// Periodically check if ipcTempFile is missing
@@ -346,7 +381,8 @@ func (p *ShellPlugin) cleanupLogFile(log log.T, ipcFile *os.File) {
 
 // InputStreamMessageHandler passes payload byte stream to shell stdin
 func (p *ShellPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgsContracts.AgentMessage) error {
-	if p.stdin == nil || p.stdout == nil {
+	var isPluginNonInteractive = appconfig.PluginNameNonInteractiveCommands == p.name
+	if !isPluginNonInteractive && (p.stdin == nil || p.stdout == nil) {
 		// This is to handle scenario when cli/console starts sending size data but pty has not been started yet
 		// Since packets are rejected, cli/console will resend these packets until pty starts successfully in separate thread
 		log.Tracef("Pty unavailable. Reject incoming message packet")
@@ -356,11 +392,38 @@ func (p *ShellPlugin) InputStreamMessageHandler(log log.T, streamDataMessage mgs
 	switch mgsContracts.PayloadType(streamDataMessage.PayloadType) {
 	case mgsContracts.Output:
 		log.Tracef("Output message received: %d", streamDataMessage.SequenceNumber)
+		if isPluginNonInteractive {
+			var signal os.Signal = nil
+			for _, message := range streamDataMessage.Payload {
+				if sig, exists := appconfig.ByteControlSignalsLinux[message]; exists {
+					log.Debugf("Received control signal. message: %v, signal: %v", string(message), sig)
+					signal = sig
+					break
+				}
+			}
+			if signal != nil {
+				defer func() {
+					if err := p.execCmd.Wait(); err != nil {
+						log.Errorf("Error received after processing control signal: %s", err)
+					}
+				}()
+				if err := p.execCmd.Signal(signal); err != nil {
+					log.Errorf("Sending signal %v to command process %v failed with error %v", signal, p.execCmd.Pid(), err)
+					return err
+				}
+			}
+			return nil
+		}
 		if _, err := p.stdin.Write(streamDataMessage.Payload); err != nil {
 			log.Errorf("Unable to write to stdin, err: %v.", err)
 			return err
 		}
 	case mgsContracts.Size:
+		// Do not handle terminal resize for non-interactive plugin as there is no pty
+		if isPluginNonInteractive {
+			log.Debug("Terminal resize message is ignored in NonInteractiveCommands plugin")
+			return nil
+		}
 		var size mgsContracts.SizeData
 		if err := json.Unmarshal(streamDataMessage.Payload, &size); err != nil {
 			log.Errorf("Invalid size message: %s", err)

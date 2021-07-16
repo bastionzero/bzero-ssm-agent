@@ -104,8 +104,8 @@ const (
 	// customCertificateFileName is the name of the custom certificate
 	customCertificateFileName = "amazon-ssm-agent.crt"
 
-	// seelogFileName is the name of the log configuration file
-	seelogFileName = "seelog.xml"
+	// SSM Agent Update download legacy path
+	LegacyUpdateDownloadFolder = "/var/log/amazon/ssm/download"
 )
 
 // PowerShellPluginCommandName is the path of the powershell.exe to be used by the runPowerShellScript plugin
@@ -127,7 +127,7 @@ var AppConfigPath = DefaultProgramFolder + AppConfigFileName
 var CustomCertificatePath = ""
 
 // SeelogFilePath specifies the path to the seelog
-var SeelogFilePath = DefaultProgramFolder + seelogFileName
+var SeelogFilePath = DefaultProgramFolder + SeelogConfigFileName
 
 func init() {
 	/*
@@ -168,8 +168,8 @@ func init() {
 			}
 
 			// Check if seelog.xml is available in relative path
-			if validateRelativeConfigFile(filepath.Join(curdir, relativeConfigFolder, seelogFileName)) {
-				SeelogFilePath = filepath.Join(curdir, relativeConfigFolder, seelogFileName)
+			if validateRelativeConfigFile(filepath.Join(curdir, relativeConfigFolder, SeelogConfigFileName)) {
+				SeelogFilePath = filepath.Join(curdir, relativeConfigFolder, SeelogConfigFileName)
 			}
 
 			// Check if certificate is available in relative path

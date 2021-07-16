@@ -20,7 +20,7 @@ import (
 	kysplContracts "github.com/aws/amazon-ssm-agent/agent/keysplitting/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
-	oidc "github.com/coreos/go-oidc/oidc"
+	oidc "github.com/coreos/go-oidc/v3/oidc"
 )
 
 const (

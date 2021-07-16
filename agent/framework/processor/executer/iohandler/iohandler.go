@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"runtime/debug"
 
 	"github.com/aws/amazon-ssm-agent/agent/agentlogstocloudwatch/cloudwatchlogspublisher"
 	"github.com/aws/amazon-ssm-agent/agent/context"
@@ -138,12 +139,10 @@ func (out *DefaultIOHandler) Init(filePath ...string) {
 	stdErrLogStreamName := ""
 	if out.ioConfig.CloudWatchConfig.LogGroupName != "" {
 		cwl := cloudwatchlogspublisher.NewCloudWatchLogsService(out.context)
-		if logGroupPresent, _ := cwl.IsLogGroupPresent(out.ioConfig.CloudWatchConfig.LogGroupName); !logGroupPresent {
-			if err := cwl.CreateLogGroup(out.ioConfig.CloudWatchConfig.LogGroupName); err != nil {
-				log.Errorf("Error Creating Log Group for CloudWatchLogs output: %v", err)
-				//Stop CloudWatch Streaming on Error
-				out.ioConfig.CloudWatchConfig.LogGroupName = ""
-			}
+		if err := cwl.CreateLogGroup(out.ioConfig.CloudWatchConfig.LogGroupName); err != nil {
+			log.Errorf("Error Creating Log Group for CloudWatchLogs output: %v", err)
+			//Stop CloudWatch Streaming on Error
+			out.ioConfig.CloudWatchConfig.LogGroupName = ""
 		}
 		stdOutLogStreamName = fmt.Sprintf("%s/%s", out.ioConfig.CloudWatchConfig.LogStreamPrefix, pluginConfig.StdoutFileName)
 		stdErrLogStreamName = fmt.Sprintf("%s/%s", out.ioConfig.CloudWatchConfig.LogStreamPrefix, pluginConfig.StderrFileName)
@@ -209,8 +208,14 @@ func (out *DefaultIOHandler) RegisterOutputSource(multiWriter multiwriter.Docume
 		// Run the reader for each module
 		log.Debug("Starting a new stream reader go routing")
 		go func(module iomodule.IOModule, r *io.PipeReader) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Errorf("Stream reader panic: %v", r)
+					log.Errorf("Stacktrace:\n%s", debug.Stack())
+				}
+			}()
 			defer wg.Done()
-			module.Read(out.context, r)
+			module.Read(out.context, r, out.ExitCode)
 		}(module, r)
 	}
 

@@ -16,6 +16,7 @@ package updateutil
 
 import (
 	"github.com/aws/amazon-ssm-agent/agent/log"
+	"github.com/aws/amazon-ssm-agent/agent/updateutil/updateconstants"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -32,12 +33,6 @@ func NewMockDefault() *Mock {
 	return new(Mock)
 }
 
-// CreateInstanceContext mocks the CreateInstanceContext function.
-func (m *Mock) CreateInstanceContext(log log.T) (context *InstanceInfo, err error) {
-	args := m.Called(log)
-	return args.Get(0).(*InstanceInfo), args.Error(1)
-}
-
 // CreateUpdateDownloadFolder mocks the CreateUpdateDownloadFolder function.
 func (m *Mock) CreateUpdateDownloadFolder() (folder string, err error) {
 	args := m.Called()
@@ -45,9 +40,9 @@ func (m *Mock) CreateUpdateDownloadFolder() (folder string, err error) {
 }
 
 // ExeCommand mocks the ExeCommand function.
-func (m *Mock) ExeCommand(log log.T, cmd string, workingDir string, updaterRoot string, stdOut string, stdErr string, isAsync bool) (pid int, exitCode UpdateScriptExitCode, err error) {
+func (m *Mock) ExeCommand(log log.T, cmd string, workingDir string, updaterRoot string, stdOut string, stdErr string, isAsync bool) (pid int, exitCode updateconstants.UpdateScriptExitCode, err error) {
 	args := m.Called(log, cmd, workingDir, updaterRoot, stdOut, stdErr, isAsync)
-	return args.Int(0), args.Get(1).(UpdateScriptExitCode), args.Error(0)
+	return args.Int(0), args.Get(1).(updateconstants.UpdateScriptExitCode), args.Error(0)
 }
 
 // SaveUpdatePluginResult mocks the SaveUpdatePluginResult function.

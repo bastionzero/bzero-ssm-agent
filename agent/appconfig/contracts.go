@@ -16,8 +16,10 @@ package appconfig
 
 // CredentialProfile represents configurations for aws credential profile
 type CredentialProfile struct {
-	ShareCreds   bool
-	ShareProfile string
+	ShareCreds        bool
+	ShareProfile      string
+	ForceUpdateCreds  bool
+	KeyAutoRotateDays int
 }
 
 // MdsCfg represents configuration for Message delivery service (MDS)
@@ -36,11 +38,18 @@ type SsmCfg struct {
 	AssociationRetryLimit       int
 	// TODO: test hook, can be removed before release
 	// this is to skip ssl verification for the beta self signed certs
-	InsecureSkipVerify                    bool
-	CustomInventoryDefaultLocation        string
+	InsecureSkipVerify             bool
+	CustomInventoryDefaultLocation string
+	// Hours to retain association logs in the orchestration folder
 	AssociationLogsRetentionDurationHours int
-	RunCommandLogsRetentionDurationHours  int
-	SessionLogsRetentionDurationHours     int
+	// Hours to retain run command logs in the orchestration folder
+	RunCommandLogsRetentionDurationHours int
+	// Hours to retain session logs in the orchestration folder
+	SessionLogsRetentionDurationHours int
+	// Configure when after execution it is safe to delete local plugin output files in orchestration folder
+	PluginLocalOutputCleanup string
+	// Configure only when it is safe to delete orchestration folder after document execution. This config overrides PluginLocalOutputCleanup when set.
+	OrchestrationDirectoryCleanup string
 }
 
 // AgentInfo represents metadata for amazon-ssm-agent
@@ -105,6 +114,7 @@ type SsmagentConfig struct {
 	S3          S3Cfg
 	Birdwatcher BirdwatcherCfg
 	Kms         KmsConfig
+	Identity    IdentityCfg
 }
 
 // AppConstants represents some run time constant variable for various module.
@@ -112,4 +122,20 @@ type SsmagentConfig struct {
 type AppConstants struct {
 	MinHealthFrequencyMinutes int
 	MaxHealthFrequencyMinutes int
+}
+
+// CustomIdentity defines a single custom identity that the agent can assume
+type CustomIdentity struct {
+	InstanceID          string
+	Region              string
+	AvailabilityZone    string
+	InstanceType        string
+	ServiceDomain       string
+	CredentialsProvider string
+}
+
+// IdentityCfg stores identity consumption order and custom identities
+type IdentityCfg struct {
+	ConsumptionOrder []string
+	CustomIdentities []*CustomIdentity
 }

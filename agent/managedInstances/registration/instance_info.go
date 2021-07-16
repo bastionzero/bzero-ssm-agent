@@ -17,20 +17,25 @@ package registration
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
-	"github.com/aws/amazon-ssm-agent/agent/log/ssmlog"
+	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/auth"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/fingerprint"
 )
 
 type instanceInfo struct {
-	InstanceID       string `json:"instanceID"`
-	Region           string `json:"region"`
-	InstanceType     string `json:"instanceType"`
-	AvailabilityZone string `json:"availabilityZone"`
-	PrivateKey       string `json:"privateKey"`
-	PrivateKeyType   string `json:"privateKeyType"`
+	InstanceID            string `json:"instanceID"`
+	Region                string `json:"region"`
+	InstanceType          string `json:"instanceType"`
+	AvailabilityZone      string `json:"availabilityZone"`
+	PrivateKey            string `json:"privateKey"`
+	PrivateKeyType        string `json:"privateKeyType"`
+	PrivateKeyCreatedDate string `json:"privateKeyCreatedDate"`
 }
 
 var (
@@ -39,76 +44,108 @@ var (
 )
 
 const (
-	RegVaultKey            = "RegistrationKey"
-	OnPremisesInstanceType = "on-premises"
+	RegVaultKey = "RegistrationKey"
+
+	// If not date is stored with private key, the default age is 10 years
+	defaultPrivateKeyAgeInDays = 3650
+	defaultDateStringFormat    = "2006-01-02 15:04:05.999999999 -0700 MST"
 )
 
 // InstanceID of the managed instance.
-func InstanceID() string {
-	instance := getInstanceInfo()
+func InstanceID(log log.T) string {
+	instance := getInstanceInfo(log)
 	return instance.InstanceID
 }
 
 // Region of the managed instance.
-func Region() string {
-	instance := getInstanceInfo()
+func Region(log log.T) string {
+	instance := getInstanceInfo(log)
 	return instance.Region
 }
 
-// InstanceType of the managed instance.
-func InstanceType() string {
-	instance := getInstanceInfo()
-	if instance.InstanceID != "" {
-		return OnPremisesInstanceType
-	}
-
-	return ""
-}
-
-// AvailabilityZone of the managed instance.
-func AvailabilityZone() string {
-	instance := getInstanceInfo()
-	if instance.InstanceID != "" {
-		return "on-premises"
-	}
-
-	return ""
-}
-
 // PrivateKey of the managed instance.
-func PrivateKey() string {
-	instance := getInstanceInfo()
+func PrivateKey(log log.T) string {
+	instance := getInstanceInfo(log)
 	return instance.PrivateKey
 }
 
+// PrivateKeyType of the managed instance.
+func PrivateKeyType(log log.T) string {
+	instance := getInstanceInfo(log)
+	return instance.PrivateKeyType
+}
+
 // Fingerprint of the managed instance.
-func Fingerprint() (string, error) {
-	return fingerprint.InstanceFingerprint()
+func Fingerprint(log log.T) (string, error) {
+	return fingerprint.InstanceFingerprint(log)
 }
 
 // HasManagedInstancesCredentials returns true when the valid registration information is present
-func HasManagedInstancesCredentials() bool {
-	info := getInstanceInfo()
+func HasManagedInstancesCredentials(log log.T) bool {
+	info := getInstanceInfo(log)
 
 	// check if we need to activate instance
 	return info.PrivateKey != "" && info.Region != "" && info.InstanceID != ""
 }
 
 // UpdatePrivateKey saves the private key into the registration persistence store
-func UpdatePrivateKey(privateKey, privateKeyType string) (err error) {
-	info := getInstanceInfo()
+func UpdatePrivateKey(log log.T, privateKey, privateKeyType string) (err error) {
+	info := getInstanceInfo(log)
 	info.PrivateKey = privateKey
 	info.PrivateKeyType = privateKeyType
+	info.PrivateKeyCreatedDate = time.Now().Format(defaultDateStringFormat)
 	return updateServerInfo(info)
+}
+
+func ShouldRotatePrivateKey(log log.T, privateKeyMaxDaysAge int, serviceSaysRotate bool) (bool, error) {
+	// only ssm-agent-worker should rotate private key to reduce chances of race condition
+	if !strings.HasPrefix(filepath.Base(os.Args[0]), "ssm-agent-worker") {
+		return false, nil
+	}
+
+	// check if service tells agent to rotate
+	if serviceSaysRotate {
+		return true, nil
+	}
+
+	// If max age is less or equal to 0, rotation is off
+	if privateKeyMaxDaysAge <= 0 {
+		return false, nil
+	}
+	info := getInstanceInfo(log)
+
+	keyAgeInDays := defaultPrivateKeyAgeInDays
+	if info.PrivateKeyCreatedDate != "" {
+		// Parse stored time using default time format
+		date, err := time.Parse(defaultDateStringFormat, info.PrivateKeyCreatedDate)
+
+		if err != nil {
+			return false, err
+		}
+		keyAgeInDays = int(time.Since(date).Hours() / 24)
+	}
+
+	return keyAgeInDays >= privateKeyMaxDaysAge, nil
+}
+
+func GeneratePublicKey(privateKey string) (publicKey string, err error) {
+	var rsaKey auth.RsaKey
+	rsaKey, err = auth.DecodePrivateKey(privateKey)
+	if err != nil {
+		return
+	}
+
+	return rsaKey.EncodePublicKey()
 }
 
 // UpdateServerInfo saves the instance info into the registration persistence store
 func UpdateServerInfo(instanceID, region, privateKey, privateKeyType string) (err error) {
 	info := instanceInfo{
-		InstanceID:     instanceID,
-		Region:         region,
-		PrivateKey:     privateKey,
-		PrivateKeyType: privateKeyType,
+		InstanceID:            instanceID,
+		Region:                region,
+		PrivateKey:            privateKey,
+		PrivateKeyType:        privateKeyType,
+		PrivateKeyCreatedDate: time.Now().Format(defaultDateStringFormat),
 	}
 	return updateServerInfo(info)
 }
@@ -175,11 +212,10 @@ func loadServerInfo() (loadErr error) {
 	return nil
 }
 
-func getInstanceInfo() instanceInfo {
+func getInstanceInfo(log log.T) instanceInfo {
 	if loadedServerInfo.InstanceID == "" {
 		if err := loadServerInfo(); err != nil {
-			logger := ssmlog.SSMLogger(false)
-			logger.Warnf("error while loading server info", err)
+			log.Warnf("error while loading server info", err)
 		}
 	}
 	lock.RLock()

@@ -19,8 +19,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/context"
-
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/sdkutil"
 	"github.com/aws/aws-sdk-go/aws"
@@ -31,9 +31,10 @@ import (
 var makeAwsConfig = sdkutil.AwsConfigForRegion
 var getS3Endpoint = GetS3Endpoint
 var getFallbackS3EndpointFunc = getFallbackS3Endpoint
-var getHttpProvider = func(logger log.T) HttpProvider {
+var getHttpProvider = func(logger log.T, appConfig appconfig.SsmagentConfig) HttpProvider {
 	return HttpProviderImpl{
-		logger: logger,
+		logger:    logger,
+		appConfig: appConfig,
 	}
 }
 
@@ -95,7 +96,7 @@ func (u *AmazonS3Util) S3Upload(log log.T, bucketName string, objectKey string, 
 			log.Infof("Successfully uploaded file to ", result.Location)
 			break
 		} else {
-			log.Errorf("Attempt %s: Failed uploading %v to s3://%v/%v err:%v ", attempt, filePath, bucketName, objectKey, err)
+			log.Errorf("Attempt %v: Failed uploading %v to s3://%v/%v err:%v ", attempt, filePath, bucketName, objectKey, err)
 			time.Sleep(time.Duration(math.Pow(2, float64(attempt))*100) * time.Millisecond)
 		}
 	}

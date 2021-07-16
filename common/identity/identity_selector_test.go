@@ -14,8 +14,9 @@ package identity
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/mock"
 	"testing"
+
+	"github.com/stretchr/testify/mock"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/log"
@@ -30,7 +31,7 @@ func TestNewAgentIdentity_ContainerMode_MissingIdentityFunc(t *testing.T) {
 	selector := &iAgentIdentitySelectorMock{}
 	identityGenerators := make(map[string]createIdentityFunc)
 
-	ident, err := newAgentIdentityInner(log.NewMockLog(), &config, selector, []string{"SomeRandomIdentity"}, identityGenerators)
+	ident, err := newAgentIdentityInner(log.NewMockLog(), &config, selector, appconfig.DefaultIdentityConsumptionOrder, identityGenerators)
 	assert.Nil(t, ident)
 	assert.NotNil(t, err)
 }
@@ -47,9 +48,30 @@ func TestNewAgentIdentity_ContainerMode_NoIdentitySelected(t *testing.T) {
 		return []IAgentIdentityInner{}
 	}
 
-	ident, err := newAgentIdentityInner(log.NewMockLog(), &config, selector, []string{"ECS"}, identityGenerators)
+	ident, err := newAgentIdentityInner(log.NewMockLog(), &config, selector, appconfig.DefaultIdentityConsumptionOrder, identityGenerators)
 	assert.Nil(t, ident)
 	assert.NotNil(t, err)
+}
+
+func TestNewAgentIdentity_ContainerMode_BackwardsCompatibilityOverride(t *testing.T) {
+	var config appconfig.SsmagentConfig
+	config.Agent.ContainerMode = true
+
+	selector := &iAgentIdentitySelectorMock{}
+
+	agentIdentity := &identityMocks.IAgentIdentityInner{}
+	selector.On("selectAgentIdentity", mock.Anything, mock.Anything).Return(agentIdentity)
+	identityGenerators := make(map[string]createIdentityFunc)
+	onPremCalled := false
+	identityGenerators["OnPrem"] = func(log.T, *appconfig.SsmagentConfig) []IAgentIdentityInner {
+		onPremCalled = true
+		return []IAgentIdentityInner{}
+	}
+
+	ident, err := newAgentIdentityInner(log.NewMockLog(), &config, selector, []string{"OnPrem"}, identityGenerators)
+	assert.NotNil(t, agentIdentity, ident)
+	assert.Nil(t, err)
+	assert.True(t, onPremCalled)
 }
 
 func TestNewAgentIdentity_ContainerMode_IdentitySelected(t *testing.T) {
@@ -114,7 +136,7 @@ func TestNewAgentIdentity_IdentitySelected(t *testing.T) {
 
 func TestDefaultAgentIdentitySelector_NotIsEnvironment(t *testing.T) {
 	selector := &defaultAgentIdentitySelector{
-		log:                        log.NewMockLog(),
+		log: log.NewMockLog(),
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -125,7 +147,7 @@ func TestDefaultAgentIdentitySelector_NotIsEnvironment(t *testing.T) {
 
 func TestDefaultAgentIdentitySelector_NoInstanceIDNoRegion(t *testing.T) {
 	selector := &defaultAgentIdentitySelector{
-		log:                        log.NewMockLog(),
+		log: log.NewMockLog(),
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -136,9 +158,9 @@ func TestDefaultAgentIdentitySelector_NoInstanceIDNoRegion(t *testing.T) {
 
 func TestInstanceIDRegionAgentIdentitySelector_NotIsEnvironment(t *testing.T) {
 	selector := &instanceIDRegionAgentIdentitySelector{
-		log:                        log.NewMockLog(),
-		region:                     "",
-		instanceID:                 "",
+		log:        log.NewMockLog(),
+		region:     "",
+		instanceID: "",
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -149,9 +171,9 @@ func TestInstanceIDRegionAgentIdentitySelector_NotIsEnvironment(t *testing.T) {
 
 func TestInstanceIDRegionAgentIdentitySelector_NoInstanceIDNoRegion(t *testing.T) {
 	selector := &instanceIDRegionAgentIdentitySelector{
-		log:                        log.NewMockLog(),
-		region:                     "",
-		instanceID:                 "",
+		log:        log.NewMockLog(),
+		region:     "",
+		instanceID: "",
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -162,9 +184,9 @@ func TestInstanceIDRegionAgentIdentitySelector_NoInstanceIDNoRegion(t *testing.T
 
 func TestInstanceIDRegionAgentIdentitySelector_ErrorWhenInstanceId(t *testing.T) {
 	selector := &instanceIDRegionAgentIdentitySelector{
-		log:                        log.NewMockLog(),
-		region:                     "",
-		instanceID:                 "SomeInstanceId",
+		log:        log.NewMockLog(),
+		region:     "",
+		instanceID: "SomeInstanceId",
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -176,9 +198,9 @@ func TestInstanceIDRegionAgentIdentitySelector_ErrorWhenInstanceId(t *testing.T)
 
 func TestInstanceIDRegionAgentIdentitySelector_IncorrectInstanceId(t *testing.T) {
 	selector := &instanceIDRegionAgentIdentitySelector{
-		log:                        log.NewMockLog(),
-		region:                     "",
-		instanceID:                 "SomeInstanceId",
+		log:        log.NewMockLog(),
+		region:     "",
+		instanceID: "SomeInstanceId",
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -190,9 +212,9 @@ func TestInstanceIDRegionAgentIdentitySelector_IncorrectInstanceId(t *testing.T)
 
 func TestInstanceIDRegionAgentIdentitySelector_CorrectInstanceIdNoRegion(t *testing.T) {
 	selector := &instanceIDRegionAgentIdentitySelector{
-		log:                        log.NewMockLog(),
-		region:                     "",
-		instanceID:                 "SomeInstanceId",
+		log:        log.NewMockLog(),
+		region:     "",
+		instanceID: "SomeInstanceId",
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -204,9 +226,9 @@ func TestInstanceIDRegionAgentIdentitySelector_CorrectInstanceIdNoRegion(t *test
 
 func TestInstanceIDRegionAgentIdentitySelector_ErrorWhenRegion(t *testing.T) {
 	selector := &instanceIDRegionAgentIdentitySelector{
-		log:                        log.NewMockLog(),
-		region:                     "SomeRegion",
-		instanceID:                 "",
+		log:        log.NewMockLog(),
+		region:     "SomeRegion",
+		instanceID: "",
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -218,9 +240,9 @@ func TestInstanceIDRegionAgentIdentitySelector_ErrorWhenRegion(t *testing.T) {
 
 func TestInstanceIDRegionAgentIdentitySelector_IncorrectRegion(t *testing.T) {
 	selector := &instanceIDRegionAgentIdentitySelector{
-		log:                        log.NewMockLog(),
-		region:                     "SomeRegion",
-		instanceID:                 "",
+		log:        log.NewMockLog(),
+		region:     "SomeRegion",
+		instanceID: "",
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -232,9 +254,9 @@ func TestInstanceIDRegionAgentIdentitySelector_IncorrectRegion(t *testing.T) {
 
 func TestInstanceIDRegionAgentIdentitySelector_CorrectRegion(t *testing.T) {
 	selector := &instanceIDRegionAgentIdentitySelector{
-		log:                        log.NewMockLog(),
-		region:                     "SomeRegion",
-		instanceID:                 "",
+		log:        log.NewMockLog(),
+		region:     "SomeRegion",
+		instanceID: "",
 	}
 
 	agentIdentity := &identityMocks.IAgentIdentityInner{}
@@ -242,4 +264,18 @@ func TestInstanceIDRegionAgentIdentitySelector_CorrectRegion(t *testing.T) {
 	agentIdentity.On("Region").Return("SomeRegion", nil)
 
 	assert.NotNil(t, selector.selectAgentIdentity([]IAgentIdentityInner{agentIdentity}, "SomeIdentityKey"))
+}
+
+func TestIsDefaultIdentityConsumptionOrder(t *testing.T) {
+	testOrder := []string{"SomeIdentity", "AnotherIdentity"}
+	defaultOrder := []string{"SomeIdentity"}
+	assert.False(t, isDefaultIdentityConsumptionOrder(testOrder, defaultOrder))
+
+	testOrder = []string{"SomeIdentity", "AnotherIdentity"}
+	defaultOrder = []string{"AnotherIdentity", "SomeIdentity"}
+	assert.False(t, isDefaultIdentityConsumptionOrder(testOrder, defaultOrder))
+
+	testOrder = []string{"SomeIdentity", "AnotherIdentity"}
+	defaultOrder = []string{"SomeIdentity", "AnotherIdentity"}
+	assert.True(t, isDefaultIdentityConsumptionOrder(testOrder, defaultOrder))
 }

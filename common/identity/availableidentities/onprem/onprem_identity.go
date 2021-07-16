@@ -15,17 +15,15 @@ package onprem
 
 import (
 	"fmt"
-	"github.com/aws/amazon-ssm-agent/agent/appconfig"
-	"github.com/aws/amazon-ssm-agent/common/identity/availableidentities/onprem/rsaauth"
-	"github.com/aws/amazon-ssm-agent/common/identity/endpoint"
+
 	"github.com/aws/aws-sdk-go/aws/credentials"
 )
 
 // InstanceID returns the managed instance ID
-func (*Identity) InstanceID() (string, error) { return managedInstance.InstanceID(), nil }
+func (i *Identity) InstanceID() (string, error) { return managedInstance.InstanceID(i.Log), nil }
 
 // Region returns the region of the managed instance
-func (*Identity) Region() (string, error) { return managedInstance.Region(), nil }
+func (i *Identity) Region() (string, error) { return managedInstance.Region(i.Log), nil }
 
 // AvailabilityZone returns the managed instance availabilityZone
 func (*Identity) AvailabilityZone() (string, error) {
@@ -47,23 +45,16 @@ func (i *Identity) Credentials() *credentials.Credentials {
 	shareLock.Lock()
 	defer shareLock.Unlock()
 
-	agentConfig, _ := appconfig.Config(true)
-	shareCreds = agentConfig.Profile.ShareCreds
-	shareProfile = agentConfig.Profile.ShareProfile
-
+	shareCreds = i.Config.Profile.ShareCreds
+	shareProfile = i.Config.Profile.ShareProfile
 	if i.credentialsSingleton == nil {
-		instanceID := managedInstance.InstanceID()
-		region := managedInstance.Region()
-		privateKey := managedInstance.PrivateKey()
-
-		// Service domain not available for onprem without querying ec2 metadata
-		defaultEndpoint := endpoint.GetDefaultEndpoint(i.Log, "ssm", region, "")
-
 		p := &managedInstancesRoleProvider{
-			Log:          i.Log,
-			Client:       rsaauth.NewRsaService(i.Log, i.Config, instanceID, region, defaultEndpoint, privateKey),
+			log:          i.Log.WithContext("[OnPremCreds]"),
+			config:       i.Config,
 			ExpiryWindow: EarlyExpiryTimeWindow,
 		}
+
+		p.InitializeClient(managedInstance.PrivateKey(i.Log))
 
 		i.credentialsSingleton = credentials.NewCredentials(p)
 	}
@@ -71,8 +62,8 @@ func (i *Identity) Credentials() *credentials.Credentials {
 }
 
 // IsIdentityEnvironment returns if instance has managed instance registration
-func (*Identity) IsIdentityEnvironment() bool {
-	return managedInstance.HasManagedInstancesCredentials()
+func (i *Identity) IsIdentityEnvironment() bool {
+	return managedInstance.HasManagedInstancesCredentials(i.Log)
 }
 
 // IdentityType returns the identity type of the managed instance

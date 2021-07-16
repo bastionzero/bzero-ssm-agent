@@ -16,6 +16,12 @@ package registration
 
 import (
 	"fmt"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/aws/amazon-ssm-agent/agent/log"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -36,7 +42,7 @@ func ExampleRegion() {
 	file = fileStub{}
 	vault = vaultStub{rKey: sampleRegistrationKey, data: sampleJson, exists: true}
 	loadServerInfo() // load info with mocked vault
-	region := Region()
+	region := Region(log.NewMockLog())
 	fmt.Println(region)
 	// Output:
 	// us-west-1
@@ -46,7 +52,7 @@ func ExampleInstanceID() {
 	file = fileStub{}
 	vault = vaultStub{rKey: sampleRegistrationKey, data: sampleJson, exists: true}
 	loadServerInfo() // load info with mocked vault
-	instanceID := InstanceID()
+	instanceID := InstanceID(log.NewMockLog())
 	fmt.Println(instanceID)
 	// Output:
 	// mi-e6c6f145e6c6f145
@@ -56,13 +62,73 @@ func ExamplePrivateKey() {
 	file = fileStub{}
 	vault = vaultStub{rKey: sampleRegistrationKey, data: sampleJson, exists: true}
 	loadServerInfo() // load info with mocked vault
-	privateKey := PrivateKey()
+	privateKey := PrivateKey(log.NewMockLog())
 	fmt.Println(privateKey)
 	// Output:
 	// KEYe6c6f145e6c6f145
 }
 
-// TODO: Add more tests once we finalize the store
+func TestGeneratePublicKey(t *testing.T) {
+	p1, privateKey, _, err := GenerateKeyPair()
+	assert.NoError(t, err)
+
+	p2, err := GeneratePublicKey(privateKey)
+	assert.NoError(t, err)
+	assert.Equal(t, p1, p2)
+}
+
+func TestShouldRotatePrivateKey(t *testing.T) {
+	var rotate bool
+	var err error
+
+	// Test not ssm-agent-worker
+	rotate, err = ShouldRotatePrivateKey(log.NewMockLog(), 0, true)
+	assert.False(t, rotate)
+	assert.NoError(t, err)
+
+	// Test ssm-agent-worker and service says should rotate
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+	os.Args = []string{"ssm-agent-worker.exe"}
+	rotate, err = ShouldRotatePrivateKey(log.NewMockLog(), 0, true)
+	assert.True(t, rotate)
+	assert.NoError(t, err)
+
+	// Test private key max age less or equal to 0
+	rotate, err = ShouldRotatePrivateKey(log.NewMockLog(), 0, false)
+	assert.False(t, rotate)
+	assert.NoError(t, err)
+	rotate, err = ShouldRotatePrivateKey(log.NewMockLog(), -1, false)
+	assert.False(t, rotate)
+	assert.NoError(t, err)
+
+	loadedServerInfo.InstanceID = "notempty"
+
+	//Test empty created date
+	loadedServerInfo.PrivateKeyCreatedDate = ""
+	rotate, err = ShouldRotatePrivateKey(log.NewMockLog(), 1, false)
+	assert.True(t, rotate)
+	assert.NoError(t, err)
+
+	//Test incorrect date format
+	loadedServerInfo.PrivateKeyCreatedDate = "2006-01-02T15:04:05.999999999 PST"
+	rotate, err = ShouldRotatePrivateKey(log.NewMockLog(), 1, false)
+	assert.False(t, rotate)
+	assert.Error(t, err)
+
+	//Test correct date format with recently rotated key
+	loadedServerInfo.PrivateKeyCreatedDate = time.Now().Format(defaultDateStringFormat)
+	rotate, err = ShouldRotatePrivateKey(log.NewMockLog(), 1, false)
+	assert.False(t, rotate)
+	assert.NoError(t, err)
+
+	//Test correct date format with old key
+	loadedServerInfo.PrivateKeyCreatedDate = time.Now().Add(-24 * time.Hour).Format(defaultDateStringFormat)
+	rotate, err = ShouldRotatePrivateKey(log.NewMockLog(), 1, false)
+	assert.True(t, rotate)
+	assert.NoError(t, err)
+
+}
 
 // stubs
 

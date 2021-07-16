@@ -59,20 +59,21 @@ func GetMgsEndpoint(context context.T, region string) (mgsEndpoint string) {
 		// use net/url package to parse endpoint, if endpoint doesn't contain protocol,
 		// fullUrl.Host is empty, should return fullUrl.Path. For backwards compatible, return the non-empty one.
 		fullUrl, err := url.Parse(appConfig.Mgs.Endpoint)
-		if err != nil {
-			return ""
+		if err == nil {
+			if fullUrl.Host != "" {
+				return fullUrl.Host
+			}
+
+			return fullUrl.Path
 		}
-		if fullUrl.Host != "" {
-			return fullUrl.Host
-		}
-		return fullUrl.Path
+
 	}
 
 	if mgsEndpoint, ok := awsMessageGatewayServiceEndpointMap[region]; ok {
 		return mgsEndpoint
 	}
 
-	mgsEndpoint = context.Identity().GetDefaultEndpoint(MgsServiceName)
+	mgsEndpoint = ruEndpoint.GetDefaultEndpoint(context.Log(), MgsServiceName, region, "")
 
 	return mgsEndpoint
 }

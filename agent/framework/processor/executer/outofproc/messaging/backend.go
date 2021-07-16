@@ -9,6 +9,7 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
+	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 )
 
@@ -44,7 +45,7 @@ type ExecuterBackend struct {
 	stopChan   chan int
 }
 
-func NewExecuterBackend(output chan contracts.DocumentResult, docState *contracts.DocumentState, cancelFlag task.CancelFlag) *ExecuterBackend {
+func NewExecuterBackend(log log.T, output chan contracts.DocumentResult, docState *contracts.DocumentState, cancelFlag task.CancelFlag) *ExecuterBackend {
 	stopChan := make(chan int, defaultBackendChannelSize)
 	inputChan := make(chan string, defaultBackendChannelSize)
 	p := ExecuterBackend{
@@ -54,11 +55,17 @@ func NewExecuterBackend(output chan contracts.DocumentResult, docState *contract
 		cancelFlag: cancelFlag,
 		stopChan:   stopChan,
 	}
-	go p.start(*docState)
+	go p.start(log, *docState)
 	return &p
 }
 
-func (p *ExecuterBackend) start(docState contracts.DocumentState) {
+func (p *ExecuterBackend) start(log log.T, docState contracts.DocumentState) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Executer backend start panic: \n%v", r)
+			log.Errorf("Stacktrace:\n%s", debug.Stack())
+		}
+	}()
 	startDatagram, _ := CreateDatagram(MessageTypePluginConfig, docState)
 	p.input <- startDatagram
 	p.cancelFlag.Wait()
@@ -82,6 +89,10 @@ func (p *ExecuterBackend) Stop() <-chan int {
 
 func (p *ExecuterBackend) Close() {
 	p.input = nil
+}
+
+func (p *ExecuterBackend) CloseStop() {
+	return
 }
 
 //TODO handle error and logging, when err, ask messaging to stop
@@ -212,4 +223,8 @@ func (p *WorkerBackend) Stop() <-chan int {
 
 func (p *WorkerBackend) Close() {
 	p.input = nil
+}
+
+func (p *WorkerBackend) CloseStop() {
+	p.stopChan = nil
 }

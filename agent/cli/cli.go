@@ -21,8 +21,12 @@ import (
 	"strings"
 
 	"github.com/aws/amazon-ssm-agent/agent/cli/cliutil"
+	"github.com/aws/amazon-ssm-agent/common/identity"
 	"github.com/twinj/uuid"
 )
+
+// Assign to variable to be able to mock function
+var newAgentIdentity = identity.NewAgentIdentity
 
 // TODO:MF: make errors more like ssm-cli: error: <arg type>: <error>?
 // RunCommand parses and executes a single command line, please refer the aws cli exit code

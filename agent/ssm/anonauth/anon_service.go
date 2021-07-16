@@ -18,6 +18,7 @@ import (
 	"log"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
+	"github.com/aws/amazon-ssm-agent/agent/backoffconfig"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/ssm/util"
 	"github.com/aws/amazon-ssm-agent/common/identity/endpoint"
@@ -26,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/cenkalti/backoff/v4"
 )
 
 // AnonymousService is an interface to the Anonymous methods of the SSM service.
@@ -43,24 +45,23 @@ func NewAnonymousService(logger logger.T, region string) AnonymousService {
 
 	log.SetFlags(0)
 
-	awsConfig := util.AwsConfig(logger).WithLogLevel(aws.LogOff)
+	appConfig, appErr := appconfig.Config(true)
+	if appErr != nil {
+		log.Printf("encountered error while loading appconfig - %v", appErr)
+	}
+	awsConfig := util.AwsConfig(logger, appConfig).WithLogLevel(aws.LogOff)
 
 	awsConfig.Region = &region
 	awsConfig.Credentials = credentials.AnonymousCredentials
 
-	//parse appConfig override to get ssm endpoint if there is any
-	appConfig, err := appconfig.Config(true)
-	if err == nil {
+	if appErr == nil {
 		if appConfig.Ssm.Endpoint != "" {
 			awsConfig.Endpoint = &appConfig.Ssm.Endpoint
 		} else {
 			// Get the default ssm endpoint for this region
 			defaultEndpoint := endpoint.GetDefaultEndpoint(logger, "ssm", region, "")
 			awsConfig.Endpoint = &defaultEndpoint
-
 		}
-	} else {
-		log.Printf("encountered error while loading appconfig - %s", err)
 	}
 
 	// Create a session to share service client config and handlers with
@@ -73,6 +74,10 @@ func NewAnonymousService(logger logger.T, region string) AnonymousService {
 
 // RegisterManagedInstance calls the RegisterManagedInstance SSM API.
 func (svc *sdkService) RegisterManagedInstance(activationCode, activationID, publicKey, publicKeyType, fingerprint string) (string, error) {
+	exponentialBackoff, err := backoffconfig.GetDefaultExponentialBackoff()
+	if err != nil {
+		return "", err
+	}
 
 	params := ssm.RegisterManagedInstanceInput{
 		ActivationCode: aws.String(activationCode),
@@ -82,7 +87,14 @@ func (svc *sdkService) RegisterManagedInstance(activationCode, activationID, pub
 		Fingerprint:    aws.String(fingerprint),
 	}
 
-	result, err := svc.sdk.RegisterManagedInstance(&params)
+	var result *ssm.RegisterManagedInstanceOutput
+	var innerErr error
+
+	err = backoff.Retry(func() error {
+		result, innerErr = svc.sdk.RegisterManagedInstance(&params)
+		return innerErr
+	}, exponentialBackoff)
+
 	if err != nil {
 		return "", err
 	}

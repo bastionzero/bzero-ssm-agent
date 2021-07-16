@@ -23,6 +23,13 @@ import (
 func parser(config *SsmagentConfig) {
 	log.Printf("processing appconfig overrides")
 
+	// Agent creds profile
+	config.Profile.KeyAutoRotateDays = getNumericValue(
+		config.Profile.KeyAutoRotateDays,
+		defaultProfileKeyAutoRotateDaysMin,
+		defaultProfileKeyAutoRotateDaysMax,
+		defaultProfileKeyAutoRotateDays)
+
 	// Agent config
 	config.Agent.Name = getStringValue(config.Agent.Name, DefaultAgentName)
 	config.Agent.OrchestrationRootDir = getStringValue(config.Agent.OrchestrationRootDir, defaultOrchestrationRootDirName)
@@ -82,6 +89,38 @@ func parser(config *SsmagentConfig) {
 		config.Ssm.RunCommandLogsRetentionDurationHours,
 		DefaultStateOrchestrationLogsRetentionDurationHoursMin,
 		DefaultRunCommandLogsRetentionDurationHours)
+	pluginLocalOutputCleanupOptions := []string{PluginLocalOutputCleanupAfterExecution,
+		PluginLocalOutputCleanupAfterUpload,
+		DefaultPluginOutputRetention}
+	config.Ssm.PluginLocalOutputCleanup = getStringEnum(config.Ssm.PluginLocalOutputCleanup,
+		pluginLocalOutputCleanupOptions,
+		DefaultPluginOutputRetention)
+
+	OrchestartionDirCleanupOtions := []string{
+		DefaultOrchestrationDirCleanup,
+		OrchestrationDirCleanupForSuccessFailedCommand,
+		OrchestrationDirCleanupForSuccessCommand,
+	}
+	config.Ssm.OrchestrationDirectoryCleanup = getStringEnum(config.Ssm.OrchestrationDirectoryCleanup,
+		OrchestartionDirCleanupOtions,
+		DefaultOrchestrationDirCleanup)
+
+	IdentityConsumptionOrderOptions := map[string]bool{
+		"OnPrem":         true,
+		"ECS":            true,
+		"EC2":            true,
+		"CustomIdentity": true,
+	}
+	config.Identity.ConsumptionOrder = getStringListEnum(
+		config.Identity.ConsumptionOrder,
+		IdentityConsumptionOrderOptions,
+		DefaultIdentityConsumptionOrder)
+	CredentialsProviderOptions := map[string]bool{
+		DefaultCustomIdentityCredentialsProvider: true,
+	}
+	for _, customIdentity := range config.Identity.CustomIdentities {
+		customIdentity.CredentialsProvider = getStringEnumMap(customIdentity.CredentialsProvider, CredentialsProviderOptions, DefaultCustomIdentityCredentialsProvider)
+	}
 }
 
 // getStringValue returns the default value if config is empty, else the config value
@@ -114,4 +153,44 @@ func getNumeric64Value(configValue int64, minValue int64, maxValue int64, defaul
 		return defaultValue
 	}
 	return configValue
+}
+
+func getStringEnum(configValue string, possibleValues []string, defaultValue string) string {
+	if stringInList(configValue, possibleValues) {
+		return configValue
+	} else {
+		return defaultValue
+	}
+}
+
+func stringInList(targetString string, stringList []string) bool {
+	for _, candidateString := range stringList {
+		if candidateString == targetString {
+			return true
+		}
+	}
+	return false
+}
+
+// getStringListEnum removes invalid values from a list, if end list is empty, returns default list
+func getStringListEnum(configValue []string, possibleValues map[string]bool, defaultValue []string) []string {
+	var result []string
+
+	for _, val := range configValue {
+		if _, ok := possibleValues[val]; ok {
+			result = append(result, val)
+		}
+	}
+	if len(result) == 0 {
+		return defaultValue
+	}
+	return result
+}
+
+// getStringEnumMap returns default if config value is not in possible values
+func getStringEnumMap(configValue string, possibleValues map[string]bool, defaultValue string) string {
+	if _, ok := possibleValues[configValue]; ok {
+		return configValue
+	}
+	return defaultValue
 }

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -54,8 +55,8 @@ type CloudWatchLogsService struct {
 	context              context.T
 	cloudWatchLogsClient cloudwatchlogsinterface.CloudWatchLogsClient
 	stopPolicy           *sdkutil.StopPolicy
-	IsFileComplete       bool
-	IsUploadComplete     bool
+	isFileComplete       bool
+	isUploadComplete     bool
 	CloudWatchMessage    CloudWatchMessage
 }
 
@@ -128,8 +129,8 @@ func NewCloudWatchLogsService(context context.T) *CloudWatchLogsService {
 		context:              context,
 		cloudWatchLogsClient: createCloudWatchClient(context),
 		stopPolicy:           createCloudWatchStopPolicy(),
-		IsFileComplete:       false,
-		IsUploadComplete:     false,
+		isFileComplete:       false,
+		isUploadComplete:     false,
 		CloudWatchMessage:    CloudWatchMessage{},
 	}
 	return &cloudWatchLogsService
@@ -141,8 +142,8 @@ func NewCloudWatchLogsServiceWithCredentials(context context.T, id, secret strin
 		context:              context,
 		cloudWatchLogsClient: createCloudWatchClientWithCredentials(context, id, secret),
 		stopPolicy:           createCloudWatchStopPolicy(),
-		IsFileComplete:       false,
-		IsUploadComplete:     false,
+		isFileComplete:       false,
+		isUploadComplete:     false,
 	}
 	return &cloudWatchLogsService
 }
@@ -358,11 +359,6 @@ func (service *CloudWatchLogsService) IsLogGroupPresent(logGroup string) (bool, 
 	return logGroupDetails != nil, logGroupDetails
 }
 
-// IsLogStreamPresent checks and returns true when the log stream is present
-func (service *CloudWatchLogsService) IsLogStreamPresent(logGroupName, logStreamName string) bool {
-	return service.getLogStreamDetails(logGroupName, logStreamName) != nil
-}
-
 // GetSequenceTokenForStream returns the current sequence token for the stream specified
 func (service *CloudWatchLogsService) GetSequenceTokenForStream(logGroupName, logStreamName string) (sequenceToken *string) {
 	logStream := service.getLogStreamDetails(logGroupName, logStreamName)
@@ -499,11 +495,17 @@ func (service *CloudWatchLogsService) StreamData(
 	structuredLogs bool) (success bool) {
 	log := service.context.Log()
 	log.Infof("Uploading logs at %s to CloudWatch", absoluteFilePath)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("CloudWatch service stream data panic: %v", r)
+			log.Errorf("Stacktrace:\n%s", debug.Stack())
+		}
+	}()
 
-	service.IsFileComplete = isFileComplete
+	service.isFileComplete = isFileComplete
 	go func() {
-		service.IsFileComplete = <-fileCompleteSignal
-		log.Debugf("Received file complete signal %v", service.IsFileComplete)
+		service.isFileComplete = <-fileCompleteSignal
+		log.Debugf("Received file complete signal %v", service.isFileComplete)
 	}()
 
 	// Keeps track of the last known line number that was successfully uploaded to CloudWatch.
@@ -514,9 +516,11 @@ func (service *CloudWatchLogsService) StreamData(
 	var err error
 
 	IsLogStreamCreated := isLogStreamCreated
+	IsFirstTimeLogging := true
 
 	// Initialize timer and set upload frequency.
 	ticker := time.NewTicker(UploadFrequency)
+	defer ticker.Stop()
 
 	for range ticker.C {
 		// Get next message to be uploaded.
@@ -529,9 +533,8 @@ func (service *CloudWatchLogsService) StreamData(
 
 		// Exit case determining that the file is complete and has been scanned till EOF.
 		if eof {
-			ticker.Stop()
 			log.Info("Finished uploading events to CloudWatch")
-			service.IsUploadComplete = true
+			service.isUploadComplete = true
 			success = true
 			break
 		}
@@ -542,30 +545,32 @@ func (service *CloudWatchLogsService) StreamData(
 			continue
 		}
 
+		if IsFirstTimeLogging {
+			log.Infof("Started CloudWatch upload")
+			IsFirstTimeLogging = false
+		}
 		log.Tracef("Uploading message line %d to CloudWatch", currentLineNumber)
 
 		if !IsLogStreamCreated {
-
-			// Terminate process if the log group is not present.
-			if logGroupPresent, _ := service.IsLogGroupPresent(logGroupName); !logGroupPresent {
-				log.Errorf("CloudWatch log group resource not created: %s", logGroupName)
-				ticker.Stop()
-				break
-			}
-
+			log.Info("Log stream creation started")
+			// Terminate process if the log stream cannot be created
 			if err := service.CreateLogStream(logGroupName, logStreamName); err != nil {
 				log.Errorf("Error Creating Log Stream for CloudWatchLogs output: %v", err)
 				currentLineNumber = lastKnownLineUploadedToCWL
 				log.Debug("Failed to upload message to CloudWatch")
-				continue
+				break
 			} else {
+				log.Info("Log stream already created")
 				IsLogStreamCreated = true
 			}
+			log.Info("Log stream creation ended")
 		}
 
 		// Use sequenceToken returned by PutLogEvents if present, else fetch new one
 		if sequenceToken == nil {
+			log.Info("Calling Get Sequence token")
 			sequenceToken = service.GetSequenceTokenForStream(logGroupName, logStreamName)
+			log.Info("Received Sequence token")
 		}
 
 		sequenceToken, err = service.PutLogEvents(events, logGroupName, logStreamName, sequenceToken)
@@ -574,9 +579,18 @@ func (service *CloudWatchLogsService) StreamData(
 			lastKnownLineUploadedToCWL = currentLineNumber
 			log.Trace("Successfully uploaded message line %d to CloudWatch", currentLineNumber)
 		} else {
-			// Reset the current line to last known line since the upload failed and retry again in the next iteration.
+			if errCode := sdkutil.GetAwsErrorCode(err); errCode == resourceNotFoundException {
+				// Log group or log stream not found due to resource change outside of client. Stop log streaming for session
+				log.Errorf(
+					"Log group \"%s\" or log stream \"%s\" not found. Log stream stopped. Error:%v",
+					logGroupName,
+					logStreamName,
+					err)
+				break
+			}
+			// Upload failed for unknown reason. Reset the current line to last known line and retry upload again in the next iteration
 			currentLineNumber = lastKnownLineUploadedToCWL
-			log.Debugf("Failed to upload message to CloudWatch, err: %v", err)
+			log.Warnf("Failed to upload message to CloudWatch, err: %v", err)
 		}
 	}
 	return success
@@ -593,7 +607,7 @@ func (service *CloudWatchLogsService) getNextMessage(
 	// Open file to read.
 	file, err := os.Open(absoluteFilePath)
 	if err != nil {
-		log.Debugf("Error opening file: %v", err)
+		log.Warnf("Error opening file: %v", err)
 		return
 	}
 	defer file.Close()
@@ -613,7 +627,7 @@ func (service *CloudWatchLogsService) getNextMessage(
 			_, err = reader.ReadSlice(NewLineCharacter)
 		}
 		if err != nil && err != io.EOF {
-			log.Debugf("Error skipping to last uploaded Cloudwatch line: %v", err)
+			log.Warnf("Error skipping to last uploaded Cloudwatch line: %v", err)
 			return
 		}
 	}
@@ -624,7 +638,7 @@ func (service *CloudWatchLogsService) getNextMessage(
 		line, err = reader.ReadSlice(NewLineCharacter)
 		if err != nil && err != bufio.ErrBufferFull {
 			// Breaking out of loop since nothing to upload
-			if err != io.EOF || len(line) == 0 || !service.IsFileComplete {
+			if err != io.EOF || len(line) == 0 || !service.isFileComplete {
 				break
 			}
 		}
@@ -656,7 +670,7 @@ func (service *CloudWatchLogsService) getNextMessage(
 	}
 
 	if err != io.EOF && err != nil {
-		log.Debug("Error reading from Cloudwatch logs file:", err)
+		log.Warnf("Error reading from Cloudwatch logs file:", err)
 	}
 
 	// Build event with the message read so far to be uploaded to CW
@@ -667,7 +681,7 @@ func (service *CloudWatchLogsService) getNextMessage(
 	}
 
 	// This determines the end of session.
-	if len(message) == 0 && (err == nil || err == io.EOF) && service.IsFileComplete {
+	if len(message) == 0 && (err == nil || err == io.EOF) && service.isFileComplete {
 		eof = true
 	}
 
@@ -717,7 +731,7 @@ func (service *CloudWatchLogsService) buildEventInfo(message []byte, structuredL
 		formattedMessage = string(formattedMessageBytes)
 	} else {
 		formattedMessage = strings.ReplaceAll(string(message), "\r\n", "\n")
-		if service.IsFileComplete && message[len(message)-1] == byte(NewLineCharacter) {
+		if service.isFileComplete && message[len(message)-1] == byte(NewLineCharacter) {
 			formattedMessage = formattedMessage[:len(formattedMessage)-1]
 		}
 	}
@@ -727,4 +741,12 @@ func (service *CloudWatchLogsService) buildEventInfo(message []byte, structuredL
 		Timestamp: aws.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
 	}
 	return event
+}
+
+func (service *CloudWatchLogsService) SetIsFileComplete(val bool) {
+	service.isFileComplete = val
+}
+
+func (service *CloudWatchLogsService) GetIsUploadComplete() bool {
+	return service.isUploadComplete
 }

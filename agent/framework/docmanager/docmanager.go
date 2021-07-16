@@ -19,6 +19,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"time"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
@@ -302,6 +303,12 @@ func isLegacyAssociationDirectory(log log.T, commandOrchestrationPath string) (b
 
 // DeleteOldOrchestrationDirectories deletes expired orchestration directories based on retentionDurationHours and associationRetentionDurationHours.
 func DeleteOldOrchestrationDirectories(log log.T, instanceID, orchestrationRootDirName string, retentionDurationHours int, associationRetentionDurationHours int) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Delete orchestration directories panic: %v", r)
+			log.Errorf("Stacktrace:\n%s", debug.Stack())
+		}
+	}()
 	orchestrationRootDir, dirNames, err := getOrchestrationDirectoryNames(log, instanceID, orchestrationRootDirName, appconfig.DefaultDocumentRootDirName)
 	if err != nil {
 		log.Debugf("Failed to get orchestration directories under %v", err)
@@ -348,6 +355,12 @@ func DeleteOldOrchestrationDirectories(log log.T, instanceID, orchestrationRootD
 
 // DeleteSessionOrchestrationDirectories deletes expired orchestration directories based on session retentionDurationHours.
 func DeleteSessionOrchestrationDirectories(log log.T, instanceID, orchestrationRootDirName string, retentionDurationHours int) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Delete session orchestration directories panic: %v", r)
+			log.Errorf("Stacktrace:\n%s", debug.Stack())
+		}
+	}()
 	orchestrationRootDir, dirNames, err := getOrchestrationDirectoryNames(log, instanceID, orchestrationRootDirName, appconfig.DefaultSessionRootDirName)
 	if err != nil {
 		log.Debugf("Failed to get orchestration directories under %v", err)
@@ -377,7 +390,7 @@ func DeleteSessionOrchestrationDirectories(log log.T, instanceID, orchestrationR
 				// This append only mode results into error while deletion of the file.
 				// Below logic is to attempt to delete ipcTempFile in case of such errors.
 				u := &utility.SessionUtil{}
-				success, err := u.DeleteIpcTempFile(sessionOrchestrationPath)
+				success, err := u.DeleteIpcTempFile(log, sessionOrchestrationPath)
 				if err != nil || !success {
 					log.Debugf("Retry attempt to delete session orchestration directory %s failed, %v", sessionOrchestrationPath, err)
 					continue

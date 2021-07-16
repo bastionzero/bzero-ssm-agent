@@ -34,7 +34,7 @@ import (
 	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	"github.com/aws/amazon-ssm-agent/agent/ssm/anonauth"
 	"github.com/aws/amazon-ssm-agent/agent/version"
-	"github.com/coreos/go-oidc/oidc"
+	"github.com/coreos/go-oidc/v3/oidc"
 )
 
 // parseFlags displays flags and handles them
@@ -44,6 +44,7 @@ func parseFlags() {
 
 	// managed instance registration
 	flag.BoolVar(&register, registerFlag, false, "")
+	flag.BoolVar(&disableSimilarityCheck, disableSimilarityCheckFlag, false, "")
 	flag.StringVar(&activationCode, activationCodeFlag, "", "")
 	flag.StringVar(&activationID, activationIDFlag, "", "")
 	flag.StringVar(&region, regionFlag, "", "")
@@ -193,12 +194,13 @@ func handleAgentVersionFlag() {
 func flagUsage() {
 	fmt.Fprintln(os.Stderr, "\n\nCommand-line Usage:")
 	fmt.Fprintln(os.Stderr, "\t-register\tregister managed instance")
-	fmt.Fprintln(os.Stderr, "\t\t-id\tSSM activation ID    \t(REQUIRED)")
-	fmt.Fprintln(os.Stderr, "\t\t-code\tSSM activation code\t(REQUIRED)")
-	fmt.Fprintln(os.Stderr, "\t\t-region\tSSM region       \t(REQUIRED)")
+	fmt.Fprintln(os.Stderr, "\t\t-id                    \tSSM activation ID                                                                          \t(REQUIRED)")
+	fmt.Fprintln(os.Stderr, "\t\t-code                  \tSSM activation code                                                                        \t(REQUIRED)")
+	fmt.Fprintln(os.Stderr, "\t\t-region                \tSSM region                                                                                 \t(REQUIRED)")
+	fmt.Fprintln(os.Stderr, "\t\t-disableSimilarityCheck\tDisable the agent hardware/fingerprint similarity check (similarity threshold is set to -1)\t(OPTIONAL)")
 	fmt.Fprintln(os.Stderr, "\n\t\t-clear\tClears the previously saved SSM registration")
 	fmt.Fprintln(os.Stderr, "\t-fingerprint\tWhether to update the machine fingerprint similarity threshold\t(OPTIONAL)")
-	fmt.Fprintln(os.Stderr, "\t\t-similarityThreshold\tThe new required percentage of matching hardware values\t(OPTIONAL)")
+	fmt.Fprintln(os.Stderr, "\t\t-similarityThreshold\tThe new required percentage of matching hardware values (-1 disables hardware check)\t(OPTIONAL)")
 	fmt.Fprintln(os.Stderr, "\n\t-y\tAnswer yes for all questions")
 }
 
@@ -207,6 +209,7 @@ func processRegistration(log logger.T) (exitCode int) {
 	if activationCode == "" || activationID == "" || region == "" {
 		// clear registration
 		if clear {
+			fingerprint.ClearStoredHardwareInfo(log)
 			return clearRegistration(log)
 		}
 		flagUsage()
@@ -217,7 +220,7 @@ func processRegistration(log logger.T) (exitCode int) {
 	bzeroInit(log)
 
 	// check if previously registered
-	if !force && registration.InstanceID() != "" {
+	if !force && registration.InstanceID(log) != "" {
 		confirmation, err := askForConfirmation()
 		if err != nil {
 			log.Errorf("Registration failed due to %v", err)
@@ -242,7 +245,7 @@ func processRegistration(log logger.T) (exitCode int) {
 
 // processFingerprint handles flags related to the fingerprint category
 func processFingerprint(log logger.T) (exitCode int) {
-	if err := fingerprint.SetSimilarityThreshold(similarityThreshold); err != nil {
+	if err := fingerprint.SetSimilarityThreshold(log, similarityThreshold); err != nil {
 		log.Errorf("Error setting the SimilarityThreshold. %v", err)
 		return 1
 	}
@@ -255,20 +258,30 @@ func registerManagedInstance(log logger.T) (managedInstanceID string, err error)
 	// try to activate the instance with the activation credentials
 	publicKey, privateKey, keyType, err := registration.GenerateKeyPair()
 	if err != nil {
-		return managedInstanceID, fmt.Errorf("error generating signing keys. %v", err)
+		return "", fmt.Errorf("error generating signing keys. %v", err)
 	}
 
 	// checking write access before registering
 	err = registration.UpdateServerInfo("", "", privateKey, keyType)
 	if err != nil {
-		return managedInstanceID,
+		return "",
 			fmt.Errorf("Unable to save registration information. %v\nTry running as sudo/administrator.", err)
 	}
 
 	// generate fingerprint
-	fingerprint, err := registration.Fingerprint()
+	fingerprintUUID, err := registration.Fingerprint(log)
 	if err != nil {
-		return managedInstanceID, fmt.Errorf("error generating instance fingerprint. %v", err)
+		return "", fmt.Errorf("error generating instance fingerprint. %v", err)
+	}
+
+	// set similarity threshold
+	if disableSimilarityCheck {
+		log.Debugf("disableSimilarityCheck is set to true, setting similarity threshold to -1")
+		if err = fingerprint.SetSimilarityThreshold(log, -1); err != nil {
+			fingerprint.ClearStoredHardwareInfo(log)
+			clearRegistration(log)
+			return "", fmt.Errorf("failed to set SimilarityThreshold: %v", err)
+		}
 	}
 
 	service := anonauth.NewAnonymousService(log, region)
@@ -277,7 +290,7 @@ func registerManagedInstance(log logger.T) (managedInstanceID string, err error)
 		activationID,
 		publicKey,
 		keyType,
-		fingerprint,
+		fingerprintUUID,
 	)
 
 	if err != nil {
