@@ -103,7 +103,6 @@ func (suite *InteractiveCommandsTestSuite) TestExecute() {
 // Testing InputStreamMessageHandler base case.
 func (suite *InteractiveCommandsTestSuite) TestInputStreamMessageHandler() {
 	mockSessionPlugin := new(sessionPluginMock.ISessionPlugin)
-	mockSessionPlugin.On("InputStreamMessageHandler", suite.mockLog, mock.Anything).Return(nil)
 	suite.plugin.sessionPlugin = mockSessionPlugin
 	suite.mockKeySplittingHelper.On("BuildError", mock.Anything, mock.Anything).Return(nil)
 	suite.plugin.ksHelper = suite.mockKeySplittingHelper
