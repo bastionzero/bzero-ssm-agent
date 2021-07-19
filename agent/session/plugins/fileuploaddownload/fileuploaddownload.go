@@ -553,11 +553,26 @@ func (p *FileUploadDownloadPlugin) handleValidatedDataPayload(dataPayload kysplC
 				return
 			}
 
-			// Check target user's permission
-			tempFile, err := ioutil.TempFile(path.Dir(fudUploadActionPayload.DestinationPath), fmt.Sprintf("fud-%v", time.Now().UTC().Unix()))
-			if err != nil {
-				errCh <- p.ksHelper.BuildError(fmt.Sprintf("User %v does not have permission to write file: %v", p.targetUser, fudUploadActionPayload.DestinationPath), kysplContracts.FUDUserDoesNotHavePermission)
+			// Check that destination path is not a folder
+			if info, err := os.Stat(fudUploadActionPayload.DestinationPath); err == nil && info.IsDir() {
+				errCh <- p.ksHelper.BuildError(fmt.Sprintf("File upload path: %v cannot be a directory", fudUploadActionPayload.DestinationPath), kysplContracts.FUDInvalidDestinationPath)
 				return
+			}
+
+			// Check target user's permission
+			pathDir := path.Dir(fudUploadActionPayload.DestinationPath)
+			tempFile, err := ioutil.TempFile(pathDir, fmt.Sprintf("fud-%v", time.Now().UTC().Unix()))
+			if err != nil {
+				if errors.Is(err, os.ErrPermission) {
+					errCh <- p.ksHelper.BuildError(fmt.Sprintf("User %v does not have permission to write file: %v", p.targetUser, fudUploadActionPayload.DestinationPath), kysplContracts.FUDUserDoesNotHavePermission)
+					return
+				} else if errors.Is(err, os.ErrNotExist) {
+					errCh <- p.ksHelper.BuildError(fmt.Sprintf("File upload path: %v contains folders that do not exist", fudUploadActionPayload.DestinationPath), kysplContracts.FUDInvalidDestinationPath)
+					return
+				} else {
+					errCh <- p.ksHelper.BuildError(fmt.Sprintf("Upload path: %v is invalid: %v", fudUploadActionPayload.DestinationPath, err), kysplContracts.FUDInvalidDestinationPath)
+					return
+				}
 			}
 			err = os.Remove(tempFile.Name())
 			if err != nil {
