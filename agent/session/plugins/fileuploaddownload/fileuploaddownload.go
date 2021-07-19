@@ -75,8 +75,9 @@ type FileUploadDownloadPlugin struct {
 	// Channel is closed when execute() exits
 	doneCh chan struct{}
 
-	targetUID int
-	targetGID int
+	targetUser string
+	targetUID  int
+	targetGID  int
 }
 
 // Returns parameters required for CLI to start session
@@ -119,6 +120,7 @@ func NewPlugin(context agentContext.T, targetUser string) (*FileUploadDownloadPl
 			activateDownloadCh: make(chan activateDownloadRequest, 1),
 			activateUploadCh:   make(chan activateUploadRequest, 1),
 			doneCh:             make(chan struct{}),
+			targetUser:         targetUser,
 			targetUID:          uid,
 			targetGID:          gid,
 		}
@@ -297,7 +299,7 @@ func (p *FileUploadDownloadPlugin) execute(
 func (p *FileUploadDownloadPlugin) openAndHashFile(filePath string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed opening file to hash: %v", err)
+		return "", fmt.Errorf("failed opening file to hash: %w", err)
 	}
 	defer f.Close()
 	return p.hashFile(f)
@@ -497,6 +499,17 @@ func (p *FileUploadDownloadPlugin) handleValidatedDataPayload(dataPayload kysplC
 				return
 			}
 
+			// Converts *os.PathError to FudErrorPayload
+			errConvert := func(err error, defaultMsg string) error {
+				if errors.Is(err, os.ErrNotExist) {
+					return p.ksHelper.BuildError(fmt.Sprintf("File not found at path: %v", fudDownloadActionPayload.FilePath), kysplContracts.FUDFileDoesNotExist)
+				} else if errors.Is(err, os.ErrPermission) {
+					return p.ksHelper.BuildError(fmt.Sprintf("User %v does not have permission to read file: %v", p.targetUser, fudDownloadActionPayload.FilePath), kysplContracts.FUDUserDoesNotHavePermission)
+				} else {
+					return p.ksHelper.BuildError(fmt.Sprintf("%v: %v", defaultMsg, err), kysplContracts.Unknown)
+				}
+			}
+
 			// Check for file existence
 			if _, err := os.Stat(fudDownloadActionPayload.FilePath); err == nil {
 				// File exists
@@ -504,7 +517,7 @@ func (p *FileUploadDownloadPlugin) handleValidatedDataPayload(dataPayload kysplC
 				// Hash the file
 				hashFileHex, err := p.openAndHashFile(fudDownloadActionPayload.FilePath)
 				if err != nil {
-					errCh <- p.ksHelper.BuildError(fmt.Sprintf("Error hashing file: %v", err.Error()), kysplContracts.KeysplittingActionError)
+					errCh <- errConvert(err, "Failed when hashing file for download")
 					return
 				}
 
@@ -529,13 +542,8 @@ func (p *FileUploadDownloadPlugin) handleValidatedDataPayload(dataPayload kysplC
 				// in execute().
 				errCh <- p.ksHelper.BuildDataAckWithPayload(dataPayload, string(encodedJsonRespPayload))
 				return
-			} else if os.IsNotExist(err) {
-				// File does not exist. Return ERROR
-				errCh <- p.ksHelper.BuildError(fmt.Sprintf("File not found at path: %v", fudDownloadActionPayload.FilePath), kysplContracts.FUDFileDoesNotExist)
-				return
 			} else {
-				// Different type of OS error (e.g. permission error)
-				errCh <- p.ksHelper.BuildError(fmt.Sprintf("Failed when opening file for download: %v", err), kysplContracts.Unknown)
+				errCh <- errConvert(err, "Failed when opening file for download")
 				return
 			}
 		case kysplContracts.FudUpload:
@@ -548,7 +556,7 @@ func (p *FileUploadDownloadPlugin) handleValidatedDataPayload(dataPayload kysplC
 			// Check target user's permission
 			tempFile, err := ioutil.TempFile(path.Dir(fudUploadActionPayload.DestinationPath), fmt.Sprintf("fud-%v", time.Now().UTC().Unix()))
 			if err != nil {
-				errCh <- p.ksHelper.BuildError(fmt.Sprintf("Failed to create temp file that checks for target user's permission to write: %v", err), kysplContracts.FUDUserDoesNotHavePermission)
+				errCh <- p.ksHelper.BuildError(fmt.Sprintf("User %v does not have permission to write file: %v", p.targetUser, fudUploadActionPayload.DestinationPath), kysplContracts.FUDUserDoesNotHavePermission)
 				return
 			}
 			err = os.Remove(tempFile.Name())
