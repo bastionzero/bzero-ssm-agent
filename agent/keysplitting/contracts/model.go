@@ -171,4 +171,5 @@ const (
 	HandlerNotReady              KeysplittingErrorType = "HandlerNotReady"
 	FUDFileDoesNotExist          KeysplittingErrorType = "FUDFileDoesNotExist"
 	FUDUserDoesNotHavePermission KeysplittingErrorType = "FUDUserDoesNotHavePermission"
+	FUDInvalidDestinationPath    KeysplittingErrorType = "FUDInvalidDestinationPath"
 )
