@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"regexp"
 
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
 	"github.com/aws/amazon-ssm-agent/agent/log"
@@ -93,6 +94,20 @@ func (p *SessionPlugin) Execute(
 				p.sessionPlugin = fud
 			}
 		}
+
+		// Require any startup commands to follow strict rules
+		// "sudo su {TargetUser} -l"
+		// https://unix.stackexchange.com/a/435120 for username matching in regex below
+		exp := "^sudo su [a-z_]([a-z0-9_-]{0,31}|[a-z0-9_-]{0,30}\\$) -l$"
+
+		r, _ := regexp.Compile(exp)
+		if !r.MatchString(shellProps.Linux.Commands) {
+			errorString := fmt.Errorf("Setting up data channel with id %s failed because an incorrect command attempted to execute", config.SessionId)
+			output.MarkAsFailed(errorString)
+			p.context.Log().Error(errorString)
+			return
+		}
+
 	}
 
 	log := p.context.Log()
