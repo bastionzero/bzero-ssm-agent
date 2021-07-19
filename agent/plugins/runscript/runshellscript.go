@@ -16,12 +16,10 @@
 package runscript
 
 import (
-	"fmt"
-
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/context"
+	"github.com/aws/amazon-ssm-agent/agent/executers"
 	"github.com/aws/amazon-ssm-agent/agent/fileutil"
-	// "github.com/aws/amazon-ssm-agent/agent/executers"
 )
 
 // runShellPlugin is the type for the RunShellScript plugin and embeds Plugin struct.
@@ -45,10 +43,9 @@ func NewRunShellPlugin(context context.T) (*runShellPlugin, error) {
 			ShellCommand:    shellCommand,
 			ShellArguments:  shellArgs,
 			ByteOrderMark:   fileutil.ByteOrderMarkSkip,
-			CommandExecuter: nil,
-			// CommandExecuter: executers.ShellCommandExecuter{},
+			CommandExecuter: executers.ShellCommandExecuter{},
 		},
 	}
 
-	return &shplugin, fmt.Errorf("Sorry but aws:runShellScript is closed. Love, BastionZero")
+	return &shplugin, nil
 }

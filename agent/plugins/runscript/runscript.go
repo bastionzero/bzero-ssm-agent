@@ -82,6 +82,7 @@ func (p *Plugin) Execute(config contracts.Configuration, cancelFlag task.CancelF
 	}
 }
 
+// This function is only used internally and is not the result of a document execution
 // runCommandsRawInput executes one set of commands and returns their output.
 // The input is in the default json unmarshal format (e.g. map[string]interface{}).
 func (p *Plugin) runCommandsRawInput(pluginID string, rawPluginInput interface{}, orchestrationDirectory string, defaultWorkingDirectory string, cancelFlag task.CancelFlag, output iohandler.IOHandler, runCommandID string) {
@@ -138,7 +139,11 @@ func (p *Plugin) runCommands(pluginID string, pluginInput RunScriptPluginInput, 
 	log.Debugf("Writing commands %v to file %v", pluginInput, scriptPath)
 
 	// Create script file
-	if err = pluginutil.CreateScriptFile(log, scriptPath, pluginInput.RunCommand, p.ByteOrderMark); err != nil {
+	getAgentInfo := []string{
+		"which bzero-ssm-agent >/dev/null || exit 1",
+		"bzero-ssm-agent -bzeroInfo || exit 2",
+	}
+	if err = pluginutil.CreateScriptFile(log, scriptPath, getAgentInfo, p.ByteOrderMark); err != nil {
 		output.MarkAsFailed(fmt.Errorf("failed to create script file. %v", err))
 		return
 	}
