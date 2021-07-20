@@ -511,8 +511,14 @@ func (p *FileUploadDownloadPlugin) handleValidatedDataPayload(dataPayload kysplC
 			}
 
 			// Check for file existence
-			if _, err := os.Stat(fudDownloadActionPayload.FilePath); err == nil {
+			if info, err := os.Stat(fudDownloadActionPayload.FilePath); err == nil {
 				// File exists
+
+				// Check that download path is not a directory
+				if info.IsDir() {
+					errCh <- p.ksHelper.BuildError(fmt.Sprintf("File download path: %v cannot be a directory", fudDownloadActionPayload.FilePath), kysplContracts.FUDInvalidDestinationPath)
+					return
+				}
 
 				// Hash the file
 				hashFileHex, err := p.openAndHashFile(fudDownloadActionPayload.FilePath)
