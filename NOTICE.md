@@ -1,3 +1,12 @@
+BastionZero SSM Agent
+Copyright 2021 BastionZero Inc.
+
+BastionZero SSM Agent adds the following third-party software with licensing:
+* square/go-jose.v2 - https://github.com/square/go-jose
+Distributed under Apache 2.0 License
+* coreos/go-oidc - https://github.com/coreos/go-oidc
+Copyright 2014 CoreOS, Inc
+
 Amazon EC2 Simple Systems Manager (SSM) Agent
 Copyright 2015-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
