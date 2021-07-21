@@ -1,3 +1,5 @@
+// Copyright 2021 BastionZero Inc.
+
 // Keysplitting Type Definitions
 package contracts
 

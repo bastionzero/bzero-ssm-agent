@@ -1,3 +1,5 @@
+// Copyright 2021 BastionZero Inc.
+
 package contracts
 
 import (

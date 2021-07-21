@@ -5,8 +5,8 @@ Summary      : Modified Amazon SSM Agent for use with bastionzero.com
 
 License      : Apache License, Version 2.0
 
-Packager     : Commonwealth Crypto, Inc.
-Vendor       : Commonwealth Crypto, Inc.
+Packager     : BastionZero Inc.
+Vendor       : BastionZero Inc.
 
 %description
 This package provides a modified Amazon SSM Agent for use with bastionzero.com

@@ -1,5 +1,5 @@
+// Copyright 2021 BastionZero Inc.
 // Package built for containing keysplitting helper methods
-// Built by BastionZero
 
 package keysplitting
 
