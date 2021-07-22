@@ -12,7 +12,8 @@
 // permissions and limitations under the License.
 
 // This code has been modified from the code covered by the Apache License 2.0.
-// Modifications Copyright (C) 2021 BastionZero Inc.
+// Modifications Copyright (C) 2021 BastionZero Inc.  The BastionZero SSM Agent
+// is licensed under the Apache 2.0 License.
 
 // Package datachannel implements data channel which is used to interactively run commands.
 package datachannel

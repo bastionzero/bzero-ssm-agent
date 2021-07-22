@@ -173,4 +173,4 @@ To set up your own custom configuration for the agent:
 
 ## License
 
-The Amazon SSM Agent is licensed under the Apache 2.0 License.  Modification made by BastionZero Inc. are Copyright (C) 2021 BastionZero.
+The Amazon SSM Agent is licensed under the Apache 2.0 License.  Modifications Copyright (C) 2021 BastionZero Inc.  The BastionZero SSM Agent is licensed under the Apache 2.0 License.
