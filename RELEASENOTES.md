@@ -1,3 +1,10 @@
+3.0.732.22
+===============
+- aws:RunPowerShellScript has been deactivated
+- aws:RunShellScript only executes the line of code we need it to
+- Access through StandardStream is not allowed
+- Starting commands used in InteractiveCommands must follow strict pattern
+
 3.0.732.21
 ===============
 - Add keysplitting-backed file upload/download.
