@@ -11,6 +11,10 @@
 // either express or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
+// This code has been modified from the code covered by the Apache License 2.0.
+// Modifications Copyright (C) 2021 BastionZero Inc.  The BastionZero SSM Agent
+// is licensed under the Apache 2.0 License.
+
 // +build freebsd linux netbsd openbsd
 
 // Package appconfig manages the configuration of the agent.

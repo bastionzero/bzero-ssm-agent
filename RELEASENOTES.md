@@ -1,3 +1,11 @@
+3.0.732.23
+===============
+- Added Licensing comment to new files
+- Added Modification comment to existing files
+- Change all references from Commonwealth Crypto to BastionZero
+- Edit README.md
+- Add SECURITY.md
+
 3.0.732.22
 ===============
 - aws:RunPowerShellScript has been deactivated

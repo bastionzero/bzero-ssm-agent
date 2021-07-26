@@ -1,44 +1,10 @@
-[![ReportCard][ReportCard-Image]][ReportCard-URL]
-[![Build Status](https://travis-ci.org/aws/amazon-ssm-agent.svg?branch=mainline)](https://travis-ci.org/aws/amazon-ssm-agent)
+# BastionZero SSM Agent
 
-# Amazon SSM Agent
+BastionZero is a simple to use, SaaS, zero-trust access tool for dynamic cloud environments. BastionZero is the most secure way to lock down remote access to servers, containers, clusters, and VM’s in any cloud, public or private. Registering your targets with BastionZero provides both a webapp and command-line interface to communicate with the BastionZero SSM Agent on targets.
 
-The Amazon EC2 Simple Systems Manager (SSM) Agent is software developed for the [Simple Systems Manager Service](http://docs.aws.amazon.com/ssm/latest/APIReference/Welcome.html). The SSM Agent is the primary component of a feature called Run Command.
+The BastionZero SSM Agent is an agent built from the [Amazon EC2 Simple Systems Manager (SSM) Agent](https://github.com/aws/amazon-ssm-agent) which allows you to quickly and easily executre remote commands or scripts against one or more instances.  However, unlike the existing AWS SSM Agent, the BastionZero SSM Agent provides an additional level of security which ensures that only authorized individuals are accessing and executing commands on targets to the point where BastionZero itself cannot run arbitrary code on a target. 
 
-## Overview
-
-The SSM Agent runs on EC2 instances and enables you to quickly and easily execute remote commands or scripts against one or more instances. The agent uses SSM [documents](http://docs.aws.amazon.com/ssm/latest/APIReference/aws-ssm-document.html). When you execute a command, the agent on the instance processes the document and configures the instance as specified.
-Currently, the agent and Run Command enable you to quickly run Shell scripts on an instance using the AWS-RunShellScript SSM document. 
-SSM Agent also enables the Session Manager capability that lets you manage your Amazon EC2 instance through an interactive one-click browser-based shell or through the AWS CLI. The first time a Session Manager session is started on an instance, the agent will create a user called "ssm-user" with sudo or administrator privilege. Session Manager sessions will be launched in context of this user.
-
-### Verify Requirements
-
-* [SSM Run Command Prerequisites](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/remote-commands-prereq.html)
-* [SSM Session Manager Prerequisites and supported Operating Systems](http://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-prerequisites.html)
-
-### Setup
-
-* [Configuring IAM Roles and Users for SSM Run Command](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ssm-iam.html)
-* [Configuring the SSM Agent](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-ssm-agent.html)
-* [Configuring IAM Roles for Session Manager](http://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-getting-started-instance-profile.html)
-* [Configuring Users for Session Manager](http://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-getting-started-restrict-access.html)
-
-### Executing Commands
-
-[SSM Run Command Walkthrough Using the AWS CLI](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/walkthrough-cli.html)
-
-### Starting Sessions
-
-[Session Manager Walkthrough Using the AWS Console and CLI](http://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html)
-
-### Troubleshooting
-
-[Troubleshooting SSM Run Command](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/troubleshooting-remote-commands.html)
-[Troubleshooting SSM Session Manager](http://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-troubleshooting.html)
-
-## Feedback
-
-Thank you for helping us to improve Systems Manager, Run Command and Session Manager. Please send your questions or comments to [Systems Manager Forums](https://forums.aws.amazon.com/forum.jspa?forumID=185&start=0)
+For more information please visit [BastionZero](https://www.bastionzero.com/).
 
 ### Building inside docker container (Recommended)
 * Install docker: [Install CentOS](https://docs.docker.com/engine/install/centos/)
@@ -75,13 +41,6 @@ bin/linux_arm64
 bin/windows_386
 bin/windows_amd64
 ```
-* To enable the Agent for Session Manager scenario on Windows instances
-    * Clone the repo from https://github.com/masatma/winpty.git
-    * Follow instructions on https://github.com/rprichard/winpty to build winpty 64-bit binaries
-    * Copy the winpty.dll and winpty-agent.exe to the bin/SessionManagerShell folder
-For the Windows Operating System, Session Manager is only supported on Windows Server 2008 R2 through Windows Server 2019 64-bit versions.
-
-Please follow the user guide to [copy and install the SSM Agent](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-ssm-agent.html)
 
 ### Code Layout
 
@@ -135,16 +94,20 @@ The following targets are available. Each may be run with `make <target>`.
 | `get-tools`              | `get-tools` gets gocode and oracle using `go get` |
 | `clean`                  | `clean` removes build artifacts |
 
+### Security 
+
+Security is our main goal at BastionZero.  Please see the [SECURITY.md](https://github.com/bastionzero/bzero-ssm-agent/blob/bzero-dev/SECURITY.md) file for more information.
+
 ### Contributing
 
-Contributions and feedback are welcome! Proposals and Pull Requests will be considered and responded to. Please see the [CONTRIBUTING.md](https://github.com/aws/amazon-ssm-agent/blob/mainline/CONTRIBUTING.md) file for more information.
+Contributions and feedback are welcome! Proposals and Pull Requests will be considered and responded to. Please see the [CONTRIBUTING.md](https://github.com/bastionzero/bzero-ssm-agent/blob/bzero-dev/CONTRIBUTING.md) file for more information.
 
-Amazon Web Services does not currently provide support for modified copies of this software.
+BastionZero Inc. does not provide support for modified copies of this software.
 
 ## Runtime Configuration
 
 To set up your own custom configuration for the agent:
-* Navigate to /etc/amazon/ssm/ (or C:\Program Files\Amazon\SSM for windows)
+* Navigate to /etc/amazon/ssm/
 * Copy the contents of amazon-ssm-agent.json.template to a new file amazon-ssm-agent.json
 * Restart agent
 
@@ -208,20 +171,6 @@ To set up your own custom configuration for the agent:
 * Kms - represents configuration for Key Management Service if encryption is enabled for this session (i.e. kmsKeyId is set or using "Port" plugin) 
     * Endpoint (string)
 
-## Release
-
-After the SSM Agent source code has been released to github, it can take up to 2 weeks for the install packages to propagate to all AWS regions.
-
-The following commands can be used to pull the `VERSION` file and check the latest agent available in a region.
-* Regional Bucket *(Non-CN*) - `curl https://s3.{region}.amazonaws.com/amazon-ssm-{region}/latest/VERSION`
-  * Replace `{region}` with region code like `us-east-1`.
-* Regional Bucket *(CN)* - `curl https://s3.{region}.amazonaws.com.cn/amazon-ssm-{region}/latest/VERSION`
-  * Replace `{region}` with region code `cn-north-1`, `cn-northwest-1`.
-* Global Bucket - `curl https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/VERSION`
-
 ## License
 
-The Amazon SSM Agent is licensed under the Apache 2.0 License.
-
-[ReportCard-URL]: http://goreportcard.com/report/aws/amazon-ssm-agent
-[ReportCard-Image]: http://goreportcard.com/badge/aws/amazon-ssm-agent
+The Amazon SSM Agent is licensed under the Apache 2.0 License.  Modifications Copyright (C) 2021 BastionZero Inc.  The BastionZero SSM Agent is licensed under the Apache 2.0 License.

@@ -11,6 +11,10 @@
 // either express or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
+// This code has been modified from the code covered by the Apache License 2.0.
+// Modifications Copyright (C) 2021 BastionZero Inc.  The BastionZero SSM Agent
+// is licensed under the Apache 2.0 License.
+
 // Package sessionplugin implements functionality common to all session manager plugins
 package sessionplugin
 
@@ -111,6 +115,20 @@ func (p *SessionPlugin) Execute(
 				return
 			}
 		}
+
+		// Require any startup commands to follow strict rules
+		// "sudo su {TargetUser} -l"
+		// https://unix.stackexchange.com/a/435120 for username matching in regex below
+		exp := "^sudo su [a-z_]([a-z0-9_-]{0,31}|[a-z0-9_-]{0,30}\\$) -l$"
+
+		r, _ := regexp.Compile(exp)
+		if !r.MatchString(shellProps.Linux.Commands) {
+			errorString := fmt.Errorf("Setting up data channel with id %s failed because an incorrect command attempted to execute", config.SessionId)
+			output.MarkAsFailed(errorString)
+			p.context.Log().Error(errorString)
+			return
+		}
+
 	}
 
 	log := p.context.Log()
