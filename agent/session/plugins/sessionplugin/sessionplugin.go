@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"regexp"
 
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
 	"github.com/aws/amazon-ssm-agent/agent/log"
@@ -74,12 +75,12 @@ func (p *SessionPlugin) Execute(
 		}
 
 		// Check if we should run FUD. All FUD activations have a JSON encoded
-		// StartFUDCommand struct in the .Commands field of the shell
+		// StartPluginMessage struct in the .Commands field of the shell
 		// properties.
-		var startFud pluginContracts.StartPluginMessage
-		if err := json.Unmarshal([]byte(shellProps.Linux.Commands), &startFud); err == nil {
-			if startFud.PluginName == string(pluginContracts.StartFud) {
-				payload := startFud.Payload.(*pluginContracts.StartFUDCommand)
+		var startPluginMsg pluginContracts.StartPluginMessage
+		if err := json.Unmarshal([]byte(shellProps.Linux.Commands), &startPluginMsg); err == nil {
+			if startPluginMsg.PluginName == string(pluginContracts.StartFud) {
+				payload := startPluginMsg.Payload.(*pluginContracts.StartFUDCommand)
 				targetUser := payload.TargetUser
 				p.context = p.context.ChangePluginNameTo(appconfig.PluginNameFileUploadDownload)
 				fud, err := fileuploaddownload.NewPlugin(p.context, targetUser)
@@ -91,6 +92,23 @@ func (p *SessionPlugin) Execute(
 				}
 				// Change to FUD plugin
 				p.sessionPlugin = fud
+			}
+		} else {
+			// If StartPluginMessage not found in shellProps.Commands, then we
+			// assume shellProps.Commands contains a literal command string
+			// meant to be passed to the PTY (created by the InteractiveCommands
+			// plugin) as an initial command.
+
+			// Require any startup commands to follow strict rules
+			// "sudo su {TargetUser} -l"
+			// https://unix.stackexchange.com/a/435120 for username matching in regex below
+			exp := "^sudo su [a-z_]([a-z0-9_-]{0,31}|[a-z0-9_-]{0,30}\\$) -l$"
+			r, _ := regexp.Compile(exp)
+			if !r.MatchString(shellProps.Linux.Commands) {
+				errorString := fmt.Errorf("Setting up data channel with id %s failed because an incorrect command attempted to execute", config.SessionId)
+				output.MarkAsFailed(errorString)
+				p.context.Log().Error(errorString)
+				return
 			}
 		}
 	}
