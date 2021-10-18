@@ -116,7 +116,7 @@ func bzeroInit(log logger.T) {
 	//  * Store keys along with passed orgID
 
 	// Safety checks for custom org provider
-	if orgProvider != "google" && orgProvider != "microsoft" {
+	if orgProvider != "google" && orgProvider != "microsoft" && orgProvider != "okta" {
 		// Make sure org provider does not have an extra / at the end
 		last_char := len(orgProvider) - 1
 		if orgProvider[last_char] == '/' {

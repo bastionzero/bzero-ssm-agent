@@ -108,11 +108,16 @@ func Init(log log.T) (IKeysplittingHelper, error) {
 		bzeCerts:     make(map[string]map[string]interface{}),
 		googleIss:    googleUrl,
 		microsoftIss: getMicrosoftIssuerUrl(bzeroConfig["OrganizationID"]),
+		oktaIss:      getOktaIss(bzeroConfig["OrganizationID"]),
 	}
 
 	log.Infof("[Keysplitting] Keysplitting Initiated.")
 
 	return helper, nil
+}
+
+func getOktaIss(orgId string) string {
+	return "https://" + orgId + "okta.com"
 }
 
 func getMicrosoftIssuerUrl(orgId string) string {
@@ -359,6 +364,8 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 		issUrl = k.googleIss
 	case "microsoft":
 		issUrl = k.microsoftIss
+	case "okta":
+		issUrl = k.oktaIss
 	default:
 		issUrl = k.provider
 	}
@@ -416,6 +423,9 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 
 	// Only validate org claim if there is an orgId associated with this agent.
 	// This will be empty for orgs associated with a personal gsuite/microsoft account
+	// We do not need to check against anything for Okta, because Okta creates a specific issuer
+	// url for every org meaning that by virtue of getting the claims, we are assured it's for the
+	// specific Okta tenant
 	switch {
 	case k.orgId == "None":
 		break
