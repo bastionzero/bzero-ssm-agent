@@ -360,7 +360,7 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	case "None":
 		// If there is no provider, skip id token verification
 		// Provider isn't stored for single-player orgs
-		return time.Now().Add(bzecertLifetime).Unix(), nil
+		return time.Now().Add(bzecertLifetime), nil
 	case "google":
 		issUrl = k.googleIss
 	case "microsoft":
