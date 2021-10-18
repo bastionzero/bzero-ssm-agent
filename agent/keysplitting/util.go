@@ -359,7 +359,7 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	case "None":
 		// If there is no provider, skip id token verification
 		// Provider isn't stored for single-player orgs
-		return time.Time{}, nil
+		return time.Unix(time.Now()), nil
 	case "google":
 		issUrl = k.googleIss
 	case "microsoft":
@@ -427,8 +427,6 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	// url for every org meaning that by virtue of getting the claims, we are assured it's for the
 	// specific Okta tenant
 	switch {
-	case k.orgId == "None":
-		break
 	case k.provider == "google":
 		if k.orgId != claims.HD {
 			return time.Time{}, k.BuildError("User's OrgId does not match target's expected Google HD", kysplContracts.BZECertInvalidProvider)
