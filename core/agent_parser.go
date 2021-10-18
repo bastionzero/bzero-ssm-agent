@@ -20,7 +20,6 @@
 package main
 
 import (
-	"context"
 	ed "crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
@@ -38,7 +37,6 @@ import (
 	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	"github.com/aws/amazon-ssm-agent/agent/ssm/anonauth"
 	"github.com/aws/amazon-ssm-agent/agent/version"
-	"github.com/coreos/go-oidc/oidc"
 )
 
 // parseFlags displays flags and handles them
@@ -114,23 +112,6 @@ func bzeroInit(log logger.T) {
 	//  * Verify orgProvider, if custom
 	//  * Generate Pub/Priv keypair
 	//  * Store keys along with passed orgID
-
-	// Safety checks for custom org provider
-	if orgProvider != "google" && orgProvider != "microsoft" && orgProvider != "okta" {
-		// Make sure org provider does not have an extra / at the end
-		last_char := len(orgProvider) - 1
-		if orgProvider[last_char] == '/' {
-			orgProvider = orgProvider[:last_char]
-		}
-
-		// Verify valid provider
-		ctx := context.TODO()
-		_, err := oidc.NewProvider(ctx, orgProvider) // Requires discovery document (aka .../well-known/openid-configuration)
-		if err != nil {
-			log.Errorf("Invalid provider: %v", orgProvider)
-			os.Exit(1)
-		}
-	}
 
 	// Generate public private key pair along ed25519 curve
 	publicKey, privateKey, err := ed.GenerateKey(nil)

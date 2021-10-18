@@ -117,7 +117,7 @@ func Init(log log.T) (IKeysplittingHelper, error) {
 }
 
 func getOktaIss(orgId string) string {
-	return "https://" + orgId + "okta.com"
+	return "https://" + orgId + ".okta.com"
 }
 
 func getMicrosoftIssuerUrl(orgId string) string {
