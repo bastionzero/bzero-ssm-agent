@@ -368,7 +368,8 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	case "okta":
 		issUrl = k.oktaIss
 	default:
-		issUrl = k.provider
+		message := fmt.Sprintf("Unrecognised OIDC provider: %s", k.provider)
+		return time.Time{}, k.BuildError(message, kysplContracts.BZECertInvalidProvider)
 	}
 
 	// TODO: validate provider on registration
