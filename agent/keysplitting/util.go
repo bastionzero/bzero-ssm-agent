@@ -77,6 +77,7 @@ type KeysplittingHelper struct {
 
 	googleIss    string `default:""`
 	microsoftIss string `default:""`
+	oktaIss      string `default:""`
 
 	HPointer         string `default:""`
 	ExpectedHPointer string
@@ -359,7 +360,7 @@ func (k *KeysplittingHelper) verifyIdToken(rawtoken string, cert kysplContracts.
 	case "None":
 		// If there is no provider, skip id token verification
 		// Provider isn't stored for single-player orgs
-		return time.Unix(time.Now().Add(bzecertLifetime), 0), nil
+		return time.Now().Add(bzecertLifetime).Unix(), nil
 	case "google":
 		issUrl = k.googleIss
 	case "microsoft":
