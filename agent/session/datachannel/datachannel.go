@@ -974,16 +974,11 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 			}
 		}
 
-		since := time.Since(w.start)
+		since := time.Since(dataChannel.start)
 
-		f, err := os.OpenFile("/var/tmp/processing_rtts", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			w.logger.Error(err)
-		}
+		f, _ := os.OpenFile("/var/tmp/processing_rtts", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		defer f.Close()
-		if _, err := f.WriteString(since.String() + "\n"); err != nil {
-			w.logger.Error(err)
-		}
+		f.WriteString(since.String() + "\n")
 	}
 
 	return nil
