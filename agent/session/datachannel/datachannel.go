@@ -95,6 +95,7 @@ type DataChannel struct {
 	InstanceId string
 	Role       string
 	Pause      bool
+	start      time.Time
 	//records sequence number of last acknowledged message received over data channel
 	ExpectedSequenceNumber int64
 	//records sequence number of last stream data message sent over data channel
@@ -160,8 +161,6 @@ type Handshake struct {
 	skipped            bool
 	handshakeStartTime time.Time
 	handshakeEndTime   time.Time
-
-	start time.Time
 }
 
 // NewDataChannel constructs datachannel objects.
