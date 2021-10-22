@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -159,6 +160,8 @@ type Handshake struct {
 	skipped            bool
 	handshakeStartTime time.Time
 	handshakeEndTime   time.Time
+
+	start time.Time
 }
 
 // NewDataChannel constructs datachannel objects.
@@ -956,6 +959,7 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 			return nil
 		}
 
+		dataChannel.start = time.Now()
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
 			payloadType := mgsContracts.PayloadType(streamDataMessage.PayloadType)
 			if payloadType == mgsContracts.Syn || payloadType == mgsContracts.Data {
@@ -968,6 +972,17 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 			} else {
 				return err
 			}
+		}
+
+		since := time.Since(w.start)
+
+		f, err := os.OpenFile("/var/tmp/processing_rtts", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			w.logger.Error(err)
+		}
+		defer f.Close()
+		if _, err := f.WriteString(since.String() + "\n"); err != nil {
+			w.logger.Error(err)
 		}
 	}
 
