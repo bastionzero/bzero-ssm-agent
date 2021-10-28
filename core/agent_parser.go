@@ -68,6 +68,9 @@ func parseFlags() {
 	// Show bzeroInfo flag
 	flag.BoolVar(&bzeroInfo, bzeroInfoFlag, false, "")
 
+	// gather bzero metrics flag
+	flag.BoolVar(&bzeroMetrics, bzeroMetricsFlag, false, "")
+
 	flag.Parse()
 }
 
@@ -131,6 +134,7 @@ func bzeroInit(log logger.T) {
 		"PrivateKey":           privkeyString,
 		"OrganizationID":       orgID,
 		"OrganizationProvider": orgProvider,
+		"Metrics":              bzeroMetrics,
 	}
 	data, err := json.Marshal(keys)
 	if err != nil {

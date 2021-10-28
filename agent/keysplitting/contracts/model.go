@@ -99,6 +99,17 @@ type ErrorPayload struct {
 	Signature string              `json:"signature"`
 }
 
+// Metrics Message for returning agent metrics data
+type MetricsPayload struct {
+	StartTime      string `json:"startTime"`
+	EndTime        string `json:"endTime"`
+	DeltaTime      string `json:"deltaTime"`
+	Service        string `json:"service"`
+	Description    string `json:"description"`
+	ChannelId      string `json:"channelId"`
+	SequenceNumber string `json:"sequenceNumber"`
+}
+
 // This will help us fix and control the defined actions any user can take
 type KeysplittingAction string
 

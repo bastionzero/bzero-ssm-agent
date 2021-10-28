@@ -45,11 +45,13 @@ const (
 	fingerprintFlag         = "fingerprint"
 	similarityThresholdFlag = "similarityThreshold"
 	bzeroInfoFlag           = "bzeroInfo"
+	bzeroMetricsFlag        = "bzeroMetrics"
 )
 
 var (
 	activationCode, activationID, region, orgID, orgProvider    string
 	register, clear, force, fpFlag, agentVersionFlag, bzeroInfo bool
+	bzeroMetrics                                                bool
 	similarityThreshold                                         int
 	registrationFile                                            = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )

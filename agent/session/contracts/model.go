@@ -268,6 +268,7 @@ const (
 	Data                 PayloadType = 13
 	DataAck              PayloadType = 14
 	KSError              PayloadType = 15
+	Metrics              PayloadType = 16
 )
 
 type PayloadTypeFlag uint32

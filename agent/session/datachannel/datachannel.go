@@ -120,6 +120,11 @@ type DataChannel struct {
 	blockCipher crypto.IBlockCipher
 	// Indicates whether encryption was enabled
 	encryptionEnabled bool
+
+	// objects for tracking bzero metrics
+	getMetrics            bool // flag for measuring metrics
+	metricsSequenceNumber int
+	metricsStartTime      time.Time
 }
 
 type ListMessageBuffer struct {
@@ -267,6 +272,24 @@ func (dataChannel *DataChannel) Initialize(context context.T,
 		skipped:                 false,
 		handshakeEndTime:        time.Now(),
 		handshakeStartTime:      time.Now(),
+	}
+
+	// check if we need to take metrics, if so, then set variables
+
+	// grab values stored on Registration from Vault
+	bzeroConfig := map[string]string{}
+
+	config, err := vault.Retrieve("BZeroConfig")
+	if err != nil {
+		context.Log().Error(err)
+	}
+
+	// Unmarshal the retrieved data
+	if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
+		context.Log().Error(err)
+	} else {
+		dataChannel.getMetrics = bzeroConfig.Metrics
+		dataChannel.metricsSequenceNumber = 0
 	}
 }
 
@@ -521,6 +544,29 @@ func (dataChannel *DataChannel) SendStreamDataMessage(log log.T, payloadType mgs
 	log.Tracef("Add stream data to OutgoingMessageBuffer. Sequence Number: %d", streamingMessage.SequenceNumber)
 	dataChannel.AddDataToOutgoingMessageBuffer(streamingMessage)
 	dataChannel.StreamDataSequenceNumber = dataChannel.StreamDataSequenceNumber + 1
+
+	// track metrics
+	if dataChannel.getMetrics {
+		now := time.Now().Unix()
+		delta := now.Sub(dataChannel.metricsStartTime).Milliseconds()
+
+		metrics := kysplContracts.MetricsPayload{
+			StartTime:      dataChannel.metricsStartTime.Unix(),
+			EndTime:        now,
+			DeltaTime:      delta,
+			Service:        "SSM Agent",
+			ChannelId:      dataChannel.ChannelId,
+			SequenceNumber: dataChannel.metricsSequenceNumber,
+		}
+
+		// send our metrics payload
+		if err := dataChannel.SendKeysplittingMessage(log, metrics); err != nil {
+			log.Error(err)
+		}
+
+		dataChannel.metricsSequenceNumber++
+	}
+
 	return nil
 }
 
@@ -591,6 +637,8 @@ func (dataChannel *DataChannel) SendKeysplittingMessage(log log.T, payload inter
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 14)
 	case kysplContracts.ErrorPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 15)
+	case kysplContracts.MetricsPayload:
+		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 16)
 	default:
 		return fmt.Errorf("Failed to hash Keysplitting message of unhandled type %v", v) // Should this also be a keysplitting error message?
 	}
@@ -755,6 +803,7 @@ func (dataChannel *DataChannel) dataChannelIncomingMessageHandler(log log.T, raw
 
 	switch streamDataMessage.MessageType {
 	case mgsContracts.InputStreamDataMessage:
+		dataChannel.start = time.Now()
 		return dataChannel.handleStreamDataMessage(log, *streamDataMessage, rawMessage)
 	case mgsContracts.AcknowledgeMessage:
 		return dataChannel.handleAcknowledgeMessage(log, *streamDataMessage)
