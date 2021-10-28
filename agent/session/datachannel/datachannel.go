@@ -290,7 +290,11 @@ func (dataChannel *DataChannel) Initialize(context context.T,
 	if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
 		context.Log().Error(err)
 	} else {
-		dataChannel.getMetrics = strconv.ParseBool(bzeroConfig["Metrics"])
+		if metricsFlag, err := strconv.ParseBool(bzeroConfig["Metrics"]); err != nil {
+			dataChannel.getMetrics = false
+		} else {
+			dataChannel.getMetrics = true
+		}
 		dataChannel.metricsSequenceNumber = 0
 	}
 }
