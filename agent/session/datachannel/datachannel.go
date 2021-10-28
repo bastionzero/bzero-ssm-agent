@@ -293,7 +293,7 @@ func (dataChannel *DataChannel) Initialize(context context.T,
 		if metricsFlag, err := strconv.ParseBool(bzeroConfig["Metrics"]); err != nil {
 			dataChannel.getMetrics = false
 		} else {
-			dataChannel.getMetrics = true
+			dataChannel.getMetrics = metricsFlag
 		}
 		dataChannel.metricsSequenceNumber = 0
 	}
