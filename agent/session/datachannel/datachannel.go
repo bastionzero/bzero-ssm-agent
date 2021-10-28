@@ -553,9 +553,9 @@ func (dataChannel *DataChannel) SendStreamDataMessage(log log.T, payloadType mgs
 		delta := now.Sub(dataChannel.metricsStartTime).Milliseconds()
 
 		metrics := kysplContracts.MetricsPayload{
-			StartTime:      dataChannel.metricsStartTime.UnixMilli(),
-			EndTime:        now.UnixMilli(),
-			DeltaTime:      delta,
+			StartTime:      dataChannel.metricsStartTime.UnixNano() / int64(time.Millisecond),
+			EndTime:        now.UnixNano() / int64(time.Millisecond),
+			DeltaMS:        delta,
 			Service:        "SSM Agent",
 			ChannelId:      dataChannel.ChannelId,
 			SequenceNumber: dataChannel.metricsSequenceNumber,

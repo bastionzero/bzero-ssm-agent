@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
@@ -134,7 +135,7 @@ func bzeroInit(log logger.T) {
 		"PrivateKey":           privkeyString,
 		"OrganizationID":       orgID,
 		"OrganizationProvider": orgProvider,
-		"Metrics":              string(bzeroMetrics),
+		"Metrics":              strconv.FormatBool(bzeroMetrics),
 	}
 	data, err := json.Marshal(keys)
 	if err != nil {
