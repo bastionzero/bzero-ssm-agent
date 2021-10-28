@@ -101,13 +101,13 @@ type ErrorPayload struct {
 
 // Metrics Message for returning agent metrics data
 type MetricsPayload struct {
-	StartTime      string `json:"startTime"`
-	EndTime        string `json:"endTime"`
-	DeltaTime      string `json:"deltaTime"`
+	StartTime      int64  `json:"startTime"`
+	EndTime        int64  `json:"endTime"`
+	DeltaTime      int    `json:"deltaTime"`
 	Service        string `json:"service"`
 	Description    string `json:"description"`
 	ChannelId      string `json:"channelId"`
-	SequenceNumber string `json:"sequenceNumber"`
+	SequenceNumber int    `json:"sequenceNumber"`
 }
 
 // This will help us fix and control the defined actions any user can take

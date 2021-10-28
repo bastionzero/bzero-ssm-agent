@@ -134,7 +134,7 @@ func bzeroInit(log logger.T) {
 		"PrivateKey":           privkeyString,
 		"OrganizationID":       orgID,
 		"OrganizationProvider": orgProvider,
-		"Metrics":              bzeroMetrics,
+		"Metrics":              string(bzeroMetrics),
 	}
 	data, err := json.Marshal(keys)
 	if err != nil {

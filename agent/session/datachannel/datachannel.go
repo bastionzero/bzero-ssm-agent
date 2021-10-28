@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strconv"
 	"sync"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/keysplitting"
 	kysplContracts "github.com/aws/amazon-ssm-agent/agent/keysplitting/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
+	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	"github.com/aws/amazon-ssm-agent/agent/rip"
 	"github.com/aws/amazon-ssm-agent/agent/session/communicator"
 	mgsConfig "github.com/aws/amazon-ssm-agent/agent/session/config"
@@ -288,7 +290,7 @@ func (dataChannel *DataChannel) Initialize(context context.T,
 	if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
 		context.Log().Error(err)
 	} else {
-		dataChannel.getMetrics = bzeroConfig.Metrics
+		dataChannel.getMetrics = strconv.ParseBool(bzeroConfig["Metrics"])
 		dataChannel.metricsSequenceNumber = 0
 	}
 }
@@ -547,12 +549,12 @@ func (dataChannel *DataChannel) SendStreamDataMessage(log log.T, payloadType mgs
 
 	// track metrics
 	if dataChannel.getMetrics {
-		now := time.Now().Unix()
+		now := time.Now()
 		delta := now.Sub(dataChannel.metricsStartTime).Milliseconds()
 
 		metrics := kysplContracts.MetricsPayload{
-			StartTime:      dataChannel.metricsStartTime.Unix(),
-			EndTime:        now,
+			StartTime:      dataChannel.metricsStartTime.UnixMilli(),
+			EndTime:        now.UnixMilli(),
 			DeltaTime:      delta,
 			Service:        "SSM Agent",
 			ChannelId:      dataChannel.ChannelId,
@@ -803,7 +805,7 @@ func (dataChannel *DataChannel) dataChannelIncomingMessageHandler(log log.T, raw
 
 	switch streamDataMessage.MessageType {
 	case mgsContracts.InputStreamDataMessage:
-		dataChannel.start = time.Now()
+		dataChannel.metricsStartTime = time.Now()
 		return dataChannel.handleStreamDataMessage(log, *streamDataMessage, rawMessage)
 	case mgsContracts.AcknowledgeMessage:
 		return dataChannel.handleAcknowledgeMessage(log, *streamDataMessage)
