@@ -124,9 +124,10 @@ type DataChannel struct {
 	encryptionEnabled bool
 
 	// objects for tracking bzero metrics
-	getMetrics            bool // flag for measuring metrics
-	metricsSequenceNumber int
-	metricsStartTime      time.Time
+	getMetrics                    bool // flag for measuring metrics
+	metricsSequenceNumber         int
+	metricsLastSentSequenceNumber int // for making sure we only send metrics reports on keystrokes
+	metricsStartTime              time.Time
 }
 
 type ListMessageBuffer struct {
@@ -295,7 +296,8 @@ func (dataChannel *DataChannel) Initialize(context context.T,
 		} else {
 			dataChannel.getMetrics = metricsFlag
 		}
-		dataChannel.metricsSequenceNumber = 0
+		dataChannel.metricsSequenceNumber = -1 // increments to zero on first keysplitting message
+		dataChannel.metricsLastSentSequenceNumber = -1
 	}
 }
 
@@ -552,27 +554,25 @@ func (dataChannel *DataChannel) SendStreamDataMessage(log log.T, payloadType mgs
 	dataChannel.StreamDataSequenceNumber = dataChannel.StreamDataSequenceNumber + 1
 
 	// track metrics
-	if dataChannel.getMetrics {
+	if dataChannel.getMetrics && dataChannel.metricsLastSentSequenceNumber < dataChannel.metricsSequenceNumber {
 		// when shell first starts up, we go through this trip 3 times before hitting actual keystrokes
-		if dataChannel.metricsSequenceNumber > 3 {
-			now := time.Now()
-			delta := float64(now.Sub(dataChannel.metricsStartTime)) / float64(time.Millisecond)
+		now := time.Now()
+		delta := float64(now.Sub(dataChannel.metricsStartTime)) / float64(time.Millisecond)
 
-			metrics := kysplContracts.MetricsPayload{
-				StartTime:      dataChannel.metricsStartTime.UnixNano() / int64(time.Millisecond),
-				EndTime:        now.UnixNano() / int64(time.Millisecond),
-				DeltaMS:        delta,
-				Service:        "SSM Agent",
-				SequenceNumber: dataChannel.metricsSequenceNumber - 3,
-			}
-
-			// send our metrics payload
-			if err := dataChannel.SendKeysplittingMessage(log, metrics); err != nil {
-				log.Error(err)
-			}
+		metrics := kysplContracts.MetricsPayload{
+			StartTime:      dataChannel.metricsStartTime.UnixNano() / int64(time.Millisecond),
+			EndTime:        now.UnixNano() / int64(time.Millisecond),
+			DeltaMS:        delta,
+			Service:        "SSM Agent",
+			SequenceNumber: dataChannel.metricsSequenceNumber,
 		}
 
-		dataChannel.metricsSequenceNumber++
+		// send our metrics payload
+		if err := dataChannel.SendKeysplittingMessage(log, metrics); err != nil {
+			log.Error(err)
+		}
+
+		dataChannel.metricsLastSentSequenceNumber = dataChannel.metricsSequenceNumber
 	}
 
 	return nil
@@ -1016,6 +1016,11 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
 			payloadType := mgsContracts.PayloadType(streamDataMessage.PayloadType)
 			if payloadType == mgsContracts.Syn || payloadType == mgsContracts.Data {
+				// only increment on keysplitting input
+				if dataChannel.getMetrics && payloadType == mgsContracts.Data {
+					dataChannel.metricsSequenceNumber++
+				}
+
 				if kserr, ok := err.(*kysplContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
 					dataChannel.SendKeysplittingMessage(log, kserr.Content)
 				} else { // If it's not of type KeysplittingError, it's wrong so build one and send it
