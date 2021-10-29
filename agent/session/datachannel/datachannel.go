@@ -296,7 +296,7 @@ func (dataChannel *DataChannel) Initialize(context context.T,
 		} else {
 			dataChannel.getMetrics = metricsFlag
 		}
-		dataChannel.metricsSequenceNumber = -1 // increments to zero on first keysplitting data message
+		dataChannel.metricsSequenceNumber = -1 // increments to zero on first keysplitting message
 		dataChannel.metricsLastSentSequenceNumber = -1
 	}
 }
@@ -1016,6 +1016,11 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
 			payloadType := mgsContracts.PayloadType(streamDataMessage.PayloadType)
 			if payloadType == mgsContracts.Syn || payloadType == mgsContracts.Data {
+				// only increment on keysplitting input
+				if dataChannel.getMetrics && payloadType == mgsContracts.Data {
+					dataChannel.metricsSequenceNumber++
+				}
+
 				if kserr, ok := err.(*kysplContracts.KeysplittingError); ok { // Check if error is of type KeysplittingError
 					dataChannel.SendKeysplittingMessage(log, kserr.Content)
 				} else { // If it's not of type KeysplittingError, it's wrong so build one and send it
@@ -1023,10 +1028,6 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 					log.Errorf("[Keysplitting] Unknown error: %v", err.Error())
 				}
 			} else {
-				// only increment on keysplitting input
-				if dataChannel.getMetrics && payloadType == mgsContracts.Data {
-					dataChannel.metricsSequenceNumber++
-				}
 				return err
 			}
 		}
