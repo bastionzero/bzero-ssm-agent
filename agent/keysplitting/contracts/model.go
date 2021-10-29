@@ -103,7 +103,7 @@ type ErrorPayload struct {
 type MetricsPayload struct {
 	StartTime      int64  `json:"startTime"`
 	EndTime        int64  `json:"endTime"`
-	DeltaMS        int64  `json:"deltaTime"`
+	DeltaMS        int64  `json:"deltaMS"`
 	Service        string `json:"service"`
 	Description    string `json:"description"`
 	ChannelId      string `json:"channelId"`
