@@ -552,26 +552,26 @@ func (dataChannel *DataChannel) SendStreamDataMessage(log log.T, payloadType mgs
 	dataChannel.StreamDataSequenceNumber = dataChannel.StreamDataSequenceNumber + 1
 
 	// track metrics
-	// if dataChannel.getMetrics {
-	// 	now := time.Now()
-	// 	delta := now.Sub(dataChannel.metricsStartTime).Milliseconds()
+	if dataChannel.getMetrics {
+		if dataChannel.metricsSequenceNumber <
+		now := time.Now()
+		delta := float64(now.Sub(dataChannel.metricsStartTime)) / float64(time.Millisecond)
 
-	// 	metrics := kysplContracts.MetricsPayload{
-	// 		StartTime:      dataChannel.metricsStartTime.UnixNano() / int64(time.Millisecond),
-	// 		EndTime:        now.UnixNano() / int64(time.Millisecond),
-	// 		DeltaMS:        delta,
-	// 		Service:        "SSM Agent",
-	// 		ChannelId:      dataChannel.ChannelId,
-	// 		SequenceNumber: dataChannel.metricsSequenceNumber,
-	// 	}
+		metrics := kysplContracts.MetricsPayload{
+			StartTime:      dataChannel.metricsStartTime.UnixNano() / int64(time.Millisecond),
+			EndTime:        now.UnixNano() / int64(time.Millisecond),
+			DeltaMS:        delta,
+			Service:        "SSM Agent",
+			SequenceNumber: dataChannel.metricsSequenceNumber,
+		}
 
-	// 	// send our metrics payload
-	// 	if err := dataChannel.SendKeysplittingMessage(log, metrics); err != nil {
-	// 		log.Error(err)
-	// 	}
+		// send our metrics payload
+		if err := dataChannel.SendKeysplittingMessage(log, metrics); err != nil {
+			log.Error(err)
+		}
 
-	// 	dataChannel.metricsSequenceNumber++
-	// }
+		dataChannel.metricsSequenceNumber++
+	}
 
 	return nil
 }
@@ -641,27 +641,6 @@ func (dataChannel *DataChannel) SendKeysplittingMessage(log log.T, payload inter
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 12)
 	case kysplContracts.DataAckPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 14)
-
-		if dataChannel.getMetrics {
-			now := time.Now()
-			delta := now.Sub(dataChannel.metricsStartTime).Milliseconds()
-
-			metrics := kysplContracts.MetricsPayload{
-				StartTime:      dataChannel.metricsStartTime.UnixNano() / int64(time.Millisecond),
-				EndTime:        now.UnixNano() / int64(time.Millisecond),
-				DeltaMS:        delta,
-				Service:        "SSM Agent",
-				ChannelId:      dataChannel.ChannelId,
-				SequenceNumber: dataChannel.metricsSequenceNumber,
-			}
-
-			// send our metrics payload
-			if err := dataChannel.SendKeysplittingMessage(log, metrics); err != nil {
-				log.Error(err)
-			}
-
-			dataChannel.metricsSequenceNumber++
-		}
 	case kysplContracts.ErrorPayload:
 		err = dataChannel.sendAgentMessagewithPayloadType(log, mgsContracts.OutputStreamDataMessage, payloadBytes, 15)
 	case kysplContracts.MetricsPayload:
@@ -830,7 +809,7 @@ func (dataChannel *DataChannel) dataChannelIncomingMessageHandler(log log.T, raw
 
 	switch streamDataMessage.MessageType {
 	case mgsContracts.InputStreamDataMessage:
-		// dataChannel.metricsStartTime = time.Now()
+		dataChannel.metricsStartTime = time.Now()
 		return dataChannel.handleStreamDataMessage(log, *streamDataMessage, rawMessage)
 	case mgsContracts.AcknowledgeMessage:
 		return dataChannel.handleAcknowledgeMessage(log, *streamDataMessage)
@@ -1031,8 +1010,6 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 			log.Tracef("Handshake still in progress, ignore stream data message sequence %d", streamDataMessage.SequenceNumber)
 			return nil
 		}
-
-		dataChannel.metricsStartTime = time.Now()
 
 		if err = dataChannel.inputStreamMessageHandler(log, streamDataMessage); err != nil {
 			payloadType := mgsContracts.PayloadType(streamDataMessage.PayloadType)
