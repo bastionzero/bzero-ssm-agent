@@ -553,21 +553,23 @@ func (dataChannel *DataChannel) SendStreamDataMessage(log log.T, payloadType mgs
 
 	// track metrics
 	if dataChannel.getMetrics {
-		if dataChannel.metricsSequenceNumber <
-		now := time.Now()
-		delta := float64(now.Sub(dataChannel.metricsStartTime)) / float64(time.Millisecond)
+		// when shell first starts up, we go through this trip 3 times before hitting actual keystrokes
+		if dataChannel.metricsSequenceNumber > 3 {
+			now := time.Now()
+			delta := float64(now.Sub(dataChannel.metricsStartTime)) / float64(time.Millisecond)
 
-		metrics := kysplContracts.MetricsPayload{
-			StartTime:      dataChannel.metricsStartTime.UnixNano() / int64(time.Millisecond),
-			EndTime:        now.UnixNano() / int64(time.Millisecond),
-			DeltaMS:        delta,
-			Service:        "SSM Agent",
-			SequenceNumber: dataChannel.metricsSequenceNumber,
-		}
+			metrics := kysplContracts.MetricsPayload{
+				StartTime:      dataChannel.metricsStartTime.UnixNano() / int64(time.Millisecond),
+				EndTime:        now.UnixNano() / int64(time.Millisecond),
+				DeltaMS:        delta,
+				Service:        "SSM Agent",
+				SequenceNumber: dataChannel.metricsSequenceNumber - 3,
+			}
 
-		// send our metrics payload
-		if err := dataChannel.SendKeysplittingMessage(log, metrics); err != nil {
-			log.Error(err)
+			// send our metrics payload
+			if err := dataChannel.SendKeysplittingMessage(log, metrics); err != nil {
+				log.Error(err)
+			}
 		}
 
 		dataChannel.metricsSequenceNumber++
