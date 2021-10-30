@@ -1018,6 +1018,7 @@ func (dataChannel *DataChannel) processStreamDataMessage(log log.T, streamDataMe
 			if payloadType == mgsContracts.Syn || payloadType == mgsContracts.Data {
 				// only increment on keysplitting input
 				if dataChannel.getMetrics && payloadType == mgsContracts.Data {
+					log.Infof("data message: %+v", streamDataMessage)
 					dataChannel.metricsSequenceNumber++
 				}
 
