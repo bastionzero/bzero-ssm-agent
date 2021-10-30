@@ -294,7 +294,7 @@ func (dataChannel *DataChannel) Initialize(context context.T,
 		if metricsFlag, err := strconv.ParseBool(bzeroConfig["Metrics"]); err != nil {
 			dataChannel.getMetrics = false
 		} else {
-			log.Infof("Recieved Bzero Metrics flag: %v", metricsFlag)
+			context.Log().Infof("Recieved Bzero Metrics flag: %v", metricsFlag)
 			dataChannel.getMetrics = metricsFlag
 		}
 		dataChannel.metricsSequenceNumber = -1 // increments to zero on first keysplitting message
