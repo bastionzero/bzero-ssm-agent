@@ -64,8 +64,10 @@ func parseFlags() {
 	// Show bzeroInfo flag
 	flag.BoolVar(&bzeroInfo, bzeroInfoFlag, false, "")
 
-	// Bzero Registration flag
-	flag.StringVar(&bzero, bzeroFlag, "", "")
+	// BZero Registration values
+	flag.StringVar(&bzeroAPIKey, bzeroAPIKeyFlag, "", "")
+	flag.StringVar(&bzeroEnvName, bzeroEnvNameFlag, "", "")
+	flag.StringVar(&bzeroTargetName, bzeroTargetNameFlag, "", "")
 
 	// BZero Org flags
 	flag.StringVar(&orgID, orgIDFlag, "", "")
@@ -150,35 +152,34 @@ func bzeroInit(log logger.T) (exitCode int) {
 	return 0
 }
 
-func processBZeroRegistration(log logger.T) (exitCode int) {
-	var regInfo bzeroreg.BZeroRegInfo
+func bzeroRegistration(log logger.T) (exitCode int) {
+	// Make registration endpoint API calls
+	log.Info("Making registration request to BastionZero...")
+	resp, err := bzeroreg.Register(bzeroAPIKey, bzeroEnvName, bzeroTargetName)
+	if err != nil {
+		log.Infof("error registering: %s", err)
+		return bzeroreg.BZeroRegErrorExitCode
+	}
+	log.Info("BZero registration successful!")
 
-	// We're going to unmarshal and then marshal the data because we want to make sure we
-	// control the variable names and only store the things that we'll know what to do with.
-	// Also, this way we can catch if the data in malformed or was incorrectly generated asap
-	if err := json.Unmarshal([]byte(bzero), &regInfo); err != nil {
-		log.Errorf("Malformed BZero Registration Info, Could Not Unmarshal Data")
+	// save registration response variables locally
+	activationCode = resp.ActivationCode
+	activationID = resp.ActivationId
+	region = resp.ActivationRegion
+	orgID = resp.OrgID
+	orgProvider = resp.OrgProvider
+
+	// Do the regular aws registration
+	if code := processRegistration(log); code != 0 {
+		log.Errorf("error processing aws registration")
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
-	// check if all required fields present
-	if bzeroreg.MissingBZeroRegFields(regInfo) {
+	// initialize our bzero variables
+	if code := bzeroInit(log); code != 0 {
+		log.Errorf("error initializing BZero variables")
 		return bzeroreg.BZeroRegErrorExitCode
 	}
-
-	data, _ := json.Marshal(regInfo)
-
-	if err := vault.Store(bzeroreg.BZeroRegStorage, data); err != nil {
-		log.Errorf("BZero Storing of Registration Information Failed: %v", err)
-		return bzeroreg.BZeroRegErrorExitCode
-	}
-
-	log.Infof("Successfully Stored BZero Registration Data")
-
-	// Try to register just in case it works and then the agent can start more smoothely on the first try
-	// We don't care if there's an error here, because it's a bonus action and not core to the registration
-	// process
-	checkAndRegister(log, false)
 
 	return 0
 }
@@ -187,21 +188,24 @@ func processBZeroRegistration(log logger.T) (exitCode int) {
 func handleRegistrationAndFingerprintFlags(log logger.T) {
 	if flag.NFlag() > 0 {
 		exitCode := 1
-		if register {
-			if bzero != "" {
-				exitCode = processBZeroRegistration(log)
-			} else {
-				exitCode = bzeroInit(log)
-				exitCode = processRegistration(log)
-			}
+
+		// process bzero registration
+		if bzeroAPIKey != "" {
+			exitCode = bzeroRegistration(log) // execute a simplified, bzero-specific registration
+		} else if register {
+			exitCode = bzeroInit(log)
+			exitCode = processRegistration(log)
 		} else if fpFlag {
 			exitCode = processFingerprint(log)
 		} else {
 			flagUsage()
 		}
+
 		log.Flush()
 		log.Close()
-		os.Exit(exitCode)
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
 	}
 }
 

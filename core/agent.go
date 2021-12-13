@@ -27,11 +27,7 @@ import (
 	"syscall"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
-	bzeroreg "github.com/aws/amazon-ssm-agent/agent/bzero/registration"
-	"github.com/aws/amazon-ssm-agent/agent/log"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
-	"github.com/aws/amazon-ssm-agent/agent/managedInstances/registration"
-	vault "github.com/aws/amazon-ssm-agent/agent/managedInstances/vault/fsvault"
 	"github.com/aws/amazon-ssm-agent/core/app"
 	"github.com/aws/amazon-ssm-agent/core/app/bootstrap"
 	"github.com/aws/amazon-ssm-agent/core/ipc/messagebus"
@@ -48,27 +44,26 @@ const (
 	similarityThresholdFlag = "similarityThreshold"
 
 	// BZero const
-	bzeroInfoFlag   = "bzeroInfo"
-	bzeroFlag       = "bzero"
-	orgIDFlag       = "org"
-	orgProviderFlag = "orgProvider"
+	bzeroInfoFlag       = "bzeroInfo"
+	bzeroAPIKeyFlag     = "apiKey"
+	bzeroEnvNameFlag    = "envName"
+	bzeroTargetNameFlag = "targetName"
+	orgIDFlag           = "org"
+	orgProviderFlag     = "orgProvider"
 )
 
 var (
 	activationCode, activationID, region             string // aws activation args
-	orgID, orgProvider, bzero                        string // bzero args
+	orgID, orgProvider                               string
+	bzeroAPIKey, bzeroEnvName, bzeroTargetName       string // bzero args
+	bzeroInfo                                        bool   // bzero args
 	register, clear, force, fpFlag, agentVersionFlag bool
-	bzeroInfo                                        bool // bzero args
 	similarityThreshold                              int
 	registrationFile                                 = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )
 
 func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	log.WriteEvent(logger.AgentTelemetryMessage, "", logger.AmazonAgentStartEvent)
-
-	if err := checkAndRegister(log, true); err != nil {
-		return nil, log, err
-	}
 
 	bs := bootstrap.NewBootstrap(log, filesystem.NewFileSystem())
 	context, err := bs.Init()
@@ -86,71 +81,6 @@ func start(log logger.T) (app.CoreAgent, logger.T, error) {
 	ssmAgentCore.Start()
 
 	return ssmAgentCore, context.Log(), nil
-}
-
-func checkAndRegister(log log.T, retry bool) error {
-	// Check if there is an activation code to see if we've already registered
-	// force variable is only relevant if we're calling this from command line
-	// it allows us to overwrite an existing registration.
-	if registration.InstanceID() == "" || force {
-		if !hasRegistrationInfo() {
-			return fmt.Errorf("This Agent does not have the required BZero registration information in order to register.")
-		}
-
-		log.Infof("Agent is not Registered with BZero.  Attempting to register now...")
-		if resp, err := bzeroreg.Register(log, retry); err != nil {
-			return err
-		} else {
-			log.Infof("Agent is now Registered with BZero.  Activating Agent...")
-			// Try to activate agent (which includes the standard aws registration + bzero config setup)
-			if err := activateAgent(resp, log); err != nil {
-				return fmt.Errorf("Error Activating Agent: %v", err)
-			} else {
-				log.Infof("Sucessfully Activated Agent")
-				return nil
-			}
-		}
-	} else {
-		log.Infof("Agent is registered with BZero.")
-		return nil
-	}
-}
-
-// Check for registration information
-func hasRegistrationInfo() bool {
-	if awsRegFile, err := vault.Retrieve(bzeroreg.BZeroRegStorage); err != nil || awsRegFile == nil {
-		return false
-	} else {
-		return true
-	}
-}
-
-// Process registration once details are retrieved from bzero
-func activateAgent(resp bzeroreg.BZeroRegResponse, log logger.T) error {
-	activationCode = resp.ActivationCode
-	activationID = resp.ActivationId
-	region = resp.ActivationRegion
-
-	orgID = resp.OrgID
-	orgProvider = resp.OrgProvider
-
-	if registration.InstanceID() != "" {
-		clearRegistration(log)
-	}
-
-	if code := processRegistration(log); code != 0 {
-		return fmt.Errorf("Error Processing Standard Registration")
-	}
-
-	if code := bzeroInit(log); code != 0 {
-		return fmt.Errorf("Error Initializing Bzero Variables")
-	}
-
-	if err := vault.Remove(bzeroreg.BZeroRegStorage); err != nil {
-		return fmt.Errorf("Error Deleting BZero Registration Data: %v", err)
-	}
-
-	return nil
 }
 
 func blockUntilSignaled(log logger.T) {
