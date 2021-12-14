@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+
+	logger "github.com/aws/amazon-ssm-agent/agent/log"
 )
 
 const (
@@ -41,7 +43,7 @@ type BZeroRegResponse struct {
 }
 
 // Attempts to register as many times as is acceptable
-func Register(apiKey string, envName string, envId string, targetName string, serviceUrl string) (BZeroRegResponse, error) {
+func Register(log logger.T, apiKey string, envName string, envId string, targetName string, serviceUrl string) (BZeroRegResponse, error) {
 	var response BZeroRegResponse
 
 	// default target name to target hostname, if not provided
@@ -64,7 +66,7 @@ func Register(apiKey string, envName string, envId string, targetName string, se
 	}
 
 	// Register with BastionZero
-	resp, err := post(regInfo, regEndpoint)
+	resp, err := post(log, regInfo, regEndpoint)
 	if err != nil {
 		return response, err
 	}
@@ -85,7 +87,7 @@ func Register(apiKey string, envName string, envId string, targetName string, se
 	return response, nil
 }
 
-func post(regInfo BZeroRegRequest, regUrl string) (*http.Response, error) {
+func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response, error) {
 	// Default params
 	// Ref: https://github.com/cenkalti/backoff/blob/a78d3804c2c84f0a3178648138442c9b07665bda/exponential.go#L76
 	// DefaultInitialInterval     = 500 * time.Millisecond
@@ -128,6 +130,7 @@ func post(regInfo BZeroRegRequest, regUrl string) (*http.Response, error) {
 		// If the status code is unauthorized, do not attempt to retry
 		if response.StatusCode == http.StatusInternalServerError || response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusNotFound {
 			ticker.Stop()
+			log.Infof("requestUrl: %s, request: %+v", regUrl, req)
 			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
 		}
 

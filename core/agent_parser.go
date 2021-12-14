@@ -165,7 +165,7 @@ func bzeroInit(log logger.T) (exitCode int) {
 func bzeroRegistration(log logger.T) (exitCode int) {
 	// Make registration endpoint API calls
 	log.Info("Making registration request to BastionZero...")
-	resp, err := bzeroreg.Register(bzeroAPIKey, bzeroEnvName, bzeroEnvID, bzeroTargetName, bzeroServiceUrl)
+	resp, err := bzeroreg.Register(log, bzeroAPIKey, bzeroEnvName, bzeroEnvID, bzeroTargetName, bzeroServiceUrl)
 	if err != nil {
 		log.Infof("error registering: %s", err)
 		return bzeroreg.BZeroRegErrorExitCode
