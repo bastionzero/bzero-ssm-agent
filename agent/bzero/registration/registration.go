@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -17,14 +18,16 @@ const (
 	BZeroConfigStorage    = "BZeroConfig"
 	BZeroRegErrorExitCode = 123
 
-	registrationEndpoint = "https://cloud.bastionzero.com/api/v1/ssm/register" //stage
+	registrationEndpoint = "api/v1/ssm/register"
+	prodServiceUrl       = "https://cloud.bastionzero.com/" // default
 )
 
 // This is the data sent to the Reg API
 type BZeroRegRequest struct {
 	RegSecret  string `json:"registrationSecret"`
 	TargetName string `json:"instanceName"`
-	EnvID      string `json:"environmentId"`
+	EnvId      string `json:"environmentId"`
+	EnvName    string `json:"environmentName"`
 }
 
 // For capturing response from registration API
@@ -38,29 +41,43 @@ type BZeroRegResponse struct {
 }
 
 // Attempts to register as many times as is acceptable
-func Register(apiKey string, envName string, targetName string) (BZeroRegResponse, error) {
+func Register(apiKey string, envName string, envId string, targetName string, serviceUrl string) (BZeroRegResponse, error) {
 	var response BZeroRegResponse
 
-	// default target name to target hostname
+	// default target name to target hostname, if not provided
 	if targetName == "" {
 		targetName, _ = os.Hostname()
 	}
 
-	// Try to register
-	resp, err := post(apiKey, envName, targetName)
+	// Package data which becomes Post request body
+	var regInfo = BZeroRegRequest{
+		RegSecret:  apiKey,
+		TargetName: targetName,
+		EnvId:      envId,
+		EnvName:    envName,
+	}
+
+	// Build Registration Endpoint
+	regEndpoint := prodServiceUrl + registrationEndpoint
+	if serviceUrl != "" {
+		regEndpoint = fmt.Sprintf("%s/%s", strings.TrimRight(serviceUrl, "/"), registrationEndpoint)
+	}
+
+	// Register with BastionZero
+	resp, err := post(regInfo, regEndpoint)
 	if err != nil {
 		return response, err
 	}
 
-	// Unmarshal response into struct
+	// Read body
 	defer resp.Body.Close()
-
 	respBytes, err := ioutil.ReadAll(resp.Body)
 
+	// Unmarshal response into struct
 	if err := json.Unmarshal(respBytes, &response); err != nil {
 		return response, fmt.Errorf("error unmarshalling registration API response: %v", string(respBytes))
 
-		// check all required response fields are present
+		// Check all required response fields are present
 	} else if fields, ok := missingResponseFields(response); !ok {
 		return response, fmt.Errorf("missing fields in registration API response: %v", fields)
 	}
@@ -68,7 +85,7 @@ func Register(apiKey string, envName string, targetName string) (BZeroRegRespons
 	return response, nil
 }
 
-func post(apiKey string, targetName string, envName string) (*http.Response, error) {
+func post(regInfo BZeroRegRequest, regUrl string) (*http.Response, error) {
 	// Default params
 	// Ref: https://github.com/cenkalti/backoff/blob/a78d3804c2c84f0a3178648138442c9b07665bda/exponential.go#L76
 	// DefaultInitialInterval     = 500 * time.Millisecond
@@ -85,21 +102,12 @@ func post(apiKey string, targetName string, envName string) (*http.Response, err
 	// Make our ticker
 	ticker := backoff.NewTicker(backoffParams)
 
-	// declare our variables
+	// Declare our variables
 	var response *http.Response
-	var err error
 
-	// Create request
-	// Unmarshal the retrieved data
-	var regInfo = BZeroRegRequest{
-		RegSecret:  apiKey,
-		TargetName: targetName,
-		EnvID:      envName,
-	}
-
-	// Make request
+	// Build request
 	bs, _ := json.Marshal(regInfo)
-	req, err := http.NewRequest("POST", registrationEndpoint, bytes.NewBuffer(bs))
+	req, err := http.NewRequest("POST", regUrl, bytes.NewBuffer(bs))
 	if err != nil {
 		return response, fmt.Errorf("Error creating new http request: %v", err)
 	}

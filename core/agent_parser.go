@@ -65,9 +65,19 @@ func parseFlags() {
 	flag.BoolVar(&bzeroInfo, bzeroInfoFlag, false, "")
 
 	// BZero Registration values
+
+	// Registration Secret
 	flag.StringVar(&bzeroAPIKey, bzeroAPIKeyFlag, "", "")
+
+	// Users can specify either an environment name or id. If none provided, defaults to default env
 	flag.StringVar(&bzeroEnvName, bzeroEnvNameFlag, "", "")
+	flag.StringVar(&bzeroEnvID, bzeroEnvIDFlag, "", "")
+
+	// Target name, defaults to hostname
 	flag.StringVar(&bzeroTargetName, bzeroTargetNameFlag, "", "")
+
+	// Optional registration url, for deploying in dev or on stage.  Defaults to prod.
+	flag.StringVar(&bzeroServiceUrl, bzeroServiceUrlFlag, "", "")
 
 	// BZero Org flags
 	flag.StringVar(&orgID, orgIDFlag, "", "")
@@ -155,7 +165,7 @@ func bzeroInit(log logger.T) (exitCode int) {
 func bzeroRegistration(log logger.T) (exitCode int) {
 	// Make registration endpoint API calls
 	log.Info("Making registration request to BastionZero...")
-	resp, err := bzeroreg.Register(bzeroAPIKey, bzeroEnvName, bzeroTargetName)
+	resp, err := bzeroreg.Register(bzeroAPIKey, bzeroEnvName, bzeroEnvID, bzeroTargetName, bzeroServiceUrl)
 	if err != nil {
 		log.Infof("error registering: %s", err)
 		return bzeroreg.BZeroRegErrorExitCode
@@ -166,8 +176,14 @@ func bzeroRegistration(log logger.T) (exitCode int) {
 	activationCode = resp.ActivationCode
 	activationID = resp.ActivationId
 	region = resp.ActivationRegion
-	orgID = resp.OrgID
-	orgProvider = resp.OrgProvider
+
+	// Only assign either or both of the SSO org fields, if they were not provided
+	if orgID == "" {
+		orgID = resp.OrgID
+	}
+	if orgProvider == "" {
+		orgProvider = resp.OrgProvider
+	}
 
 	// Do the regular aws registration
 	if code := processRegistration(log); code != 0 {

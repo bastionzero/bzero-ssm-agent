@@ -47,7 +47,9 @@ const (
 	bzeroInfoFlag       = "bzeroInfo"
 	bzeroAPIKeyFlag     = "apiKey"
 	bzeroEnvNameFlag    = "envName"
+	bzeroEnvIDFlag      = "envID"
 	bzeroTargetNameFlag = "targetName"
+	bzeroServiceUrlFlag = "serviceUrl"
 	orgIDFlag           = "org"
 	orgProviderFlag     = "orgProvider"
 )
@@ -56,7 +58,8 @@ var (
 	activationCode, activationID, region             string // aws activation args
 	orgID, orgProvider                               string
 	bzeroAPIKey, bzeroEnvName, bzeroTargetName       string // bzero args
-	bzeroInfo                                        bool   // bzero args
+	bzeroEnvID, bzeroServiceUrl                      string
+	bzeroInfo                                        bool // bzero args
 	register, clear, force, fpFlag, agentVersionFlag bool
 	similarityThreshold                              int
 	registrationFile                                 = filepath.Join(appconfig.DefaultDataStorePath, "registration")
