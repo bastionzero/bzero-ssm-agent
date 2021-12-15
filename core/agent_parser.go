@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
@@ -158,7 +159,7 @@ func bzeroInit(log logger.T) (exitCode int) {
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
-	log.Info("Successfully Created and Stored BZero Config!")
+	log.Info("Successfully initialized and stored all BastionZero variables")
 	return 0
 }
 
@@ -170,7 +171,7 @@ func bzeroRegistration(log logger.T) (exitCode int) {
 		log.Infof("error registering: %s", err)
 		return bzeroreg.BZeroRegErrorExitCode
 	}
-	log.Info("BZero registration successful!")
+	log.Info("Registration call to BastionZero successful!")
 
 	// save registration response variables locally
 	activationCode = resp.ActivationCode
@@ -197,7 +198,11 @@ func bzeroRegistration(log logger.T) (exitCode int) {
 		return bzeroreg.BZeroRegErrorExitCode
 	}
 
-	return 0
+	log.Info("Agent fully registered!")
+
+	// reboot agent
+	log.Info("Restarting Agent...")
+	return restartAgent(log)
 }
 
 // handles registration and fingerprint flags
@@ -219,10 +224,31 @@ func handleRegistrationAndFingerprintFlags(log logger.T) {
 
 		log.Flush()
 		log.Close()
-		if exitCode != 0 {
-			os.Exit(exitCode)
-		}
+		os.Exit(exitCode)
 	}
+}
+
+func restartAgent(log logger.T) int {
+	// test if init or systemd
+	procBytes, err := ioutil.ReadFile("/proc/1/comm")
+	if err != nil {
+		return 1
+	}
+	proc := strings.ReplaceAll(string(procBytes), "\n", "")
+
+	var cmd *exec.Cmd
+	switch proc {
+	case "init":
+		cmd = exec.Command("restart", "bzero-ssm-agent")
+	case "systemd":
+		cmd = exec.Command("systemctl", "restart", "bzero-ssm-agent")
+	default:
+		log.Errorf("Error: cannot start agent unknown service manager (only systemd and init are supported)")
+		return 1
+	}
+
+	cmd.Run()
+	return 0
 }
 
 // handles agent version flag.

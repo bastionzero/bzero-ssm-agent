@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"syscall"
+	"time"
 
 	"github.com/aws/amazon-ssm-agent/agent/agent"
 	"github.com/aws/amazon-ssm-agent/agent/agentlogstocloudwatch/cloudwatchlogspublisher"
@@ -105,11 +106,17 @@ func start(log logger.T, instanceIDPtr *string, regionPtr *string, shouldCheckHi
 		return
 	}
 
+	// buffer to let agent register properly
+	time.Sleep(15 * time.Second)
+
 	// Do a health check before starting the agent.
 	// Health check would include creating a health module and sending empty health pings to the service.
 	// If response is positive, start the agent, else retry and eventually back off (hibernate/passive mode).
 	if status, hibernationErr := healthModule.GetAgentState(); shouldCheckHibernation && status == health.Passive {
-		//Starting hibernate mode
+		// Starting hibernate mode
+		// context.Log().Info("Hit hibernation error, returning: %s", hibernationErr)
+		// // err = startAgent(ssmAgent, context)
+		// return
 		context.Log().Info("Entering SSM Agent hibernate - ", hibernationErr)
 		go func() {
 			hibernateState.ExecuteHibernation()

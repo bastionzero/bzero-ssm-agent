@@ -18,7 +18,7 @@ import (
 
 const (
 	BZeroConfigStorage    = "BZeroConfig"
-	BZeroRegErrorExitCode = 123
+	BZeroRegErrorExitCode = 234
 
 	registrationEndpoint = "api/v1/ssm/register"
 	prodServiceUrl       = "https://cloud.bastionzero.com/" // default
@@ -133,7 +133,6 @@ func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response,
 		// If the status code is unauthorized, do not attempt to retry
 		if response.StatusCode == http.StatusInternalServerError || response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusNotFound {
 			ticker.Stop()
-			log.Infof("body: %s, request: %+v", string(regInfoBytes), req)
 			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
 		}
 
