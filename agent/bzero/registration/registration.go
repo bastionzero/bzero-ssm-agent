@@ -28,8 +28,8 @@ const (
 type BZeroRegRequest struct {
 	RegSecret  string `json:"registrationSecret"`
 	TargetName string `json:"instanceName"`
-	EnvId      string `json:"environmentId"`
-	EnvName    string `json:"environmentName"`
+	EnvId      string `json:"environmentId,omitempty"`
+	EnvName    string `json:"environmentName,omitempty"`
 }
 
 // For capturing response from registration API
@@ -108,8 +108,11 @@ func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response,
 	var response *http.Response
 
 	// Build request
-	bs, _ := json.Marshal(regInfo)
-	req, err := http.NewRequest("POST", regUrl, bytes.NewBuffer(bs))
+	regInfoBytes, err := json.Marshal(regInfo)
+	if err != nil {
+		return response, fmt.Errorf("could not marshal registration request")
+	}
+	req, err := http.NewRequest("POST", regUrl, bytes.NewBuffer(regInfoBytes))
 	if err != nil {
 		return response, fmt.Errorf("Error creating new http request: %v", err)
 	}
@@ -130,7 +133,7 @@ func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response,
 		// If the status code is unauthorized, do not attempt to retry
 		if response.StatusCode == http.StatusInternalServerError || response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusNotFound {
 			ticker.Stop()
-			log.Infof("requestUrl: %s, request: %+v", regUrl, req)
+			log.Infof("body: %s, request: %+v", string(regInfoBytes), req)
 			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
 		}
 
