@@ -68,7 +68,7 @@ func parseFlags() {
 	// BZero Registration values
 
 	// Registration Secret
-	flag.StringVar(&bzeroAPIKey, bzeroAPIKeyFlag, "", "")
+	flag.StringVar(&bzeroRegistrationKey, bzeroRegistrationKeyFlag, "", "")
 
 	// Users can specify either an environment name or id. If none provided, defaults to default env
 	flag.StringVar(&bzeroEnvName, bzeroEnvNameFlag, "", "")
@@ -166,7 +166,7 @@ func bzeroInit(log logger.T) (exitCode int) {
 func bzeroRegistration(log logger.T) (exitCode int) {
 	// Make registration endpoint API calls
 	log.Info("Making registration request to BastionZero...")
-	resp, err := bzeroreg.Register(log, bzeroAPIKey, bzeroEnvName, bzeroEnvID, bzeroTargetName, bzeroServiceUrl)
+	resp, err := bzeroreg.Register(log, bzeroRegistrationKey, bzeroEnvName, bzeroEnvID, bzeroTargetName, bzeroServiceUrl)
 	if err != nil {
 		log.Infof("error registering: %s", err)
 		return bzeroreg.BZeroRegErrorExitCode
@@ -211,7 +211,7 @@ func handleRegistrationAndFingerprintFlags(log logger.T) {
 		exitCode := 1
 
 		// process bzero registration
-		if bzeroAPIKey != "" {
+		if bzeroRegistrationKey != "" {
 			exitCode = bzeroRegistration(log) // execute a simplified, bzero-specific registration
 		} else if register {
 			exitCode = bzeroInit(log)

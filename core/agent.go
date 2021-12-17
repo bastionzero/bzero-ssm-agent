@@ -44,25 +44,25 @@ const (
 	similarityThresholdFlag = "similarityThreshold"
 
 	// BZero const
-	bzeroInfoFlag       = "bzeroInfo"
-	bzeroAPIKeyFlag     = "apiKey"
-	bzeroEnvNameFlag    = "envName"
-	bzeroEnvIDFlag      = "envID"
-	bzeroTargetNameFlag = "targetName"
-	bzeroServiceUrlFlag = "serviceUrl"
-	orgIDFlag           = "org"
-	orgProviderFlag     = "orgProvider"
+	bzeroInfoFlag            = "bzeroInfo"
+	bzeroRegistrationKeyFlag = "registrationKey"
+	bzeroEnvNameFlag         = "envName"
+	bzeroEnvIDFlag           = "envID"
+	bzeroTargetNameFlag      = "targetName"
+	bzeroServiceUrlFlag      = "serviceUrl"
+	orgIDFlag                = "org"
+	orgProviderFlag          = "orgProvider"
 )
 
 var (
-	activationCode, activationID, region             string // aws activation args
-	orgID, orgProvider                               string
-	bzeroAPIKey, bzeroEnvName, bzeroTargetName       string // bzero args
-	bzeroEnvID, bzeroServiceUrl                      string
-	bzeroInfo                                        bool // bzero args
-	register, clear, force, fpFlag, agentVersionFlag bool
-	similarityThreshold                              int
-	registrationFile                                 = filepath.Join(appconfig.DefaultDataStorePath, "registration")
+	activationCode, activationID, region                string // aws activation args
+	orgID, orgProvider                                  string
+	bzeroRegistrationKey, bzeroEnvName, bzeroTargetName string // bzero args
+	bzeroEnvID, bzeroServiceUrl                         string
+	bzeroInfo                                           bool // bzero args
+	register, clear, force, fpFlag, agentVersionFlag    bool
+	similarityThreshold                                 int
+	registrationFile                                    = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )
 
 func start(log logger.T) (app.CoreAgent, logger.T, error) {

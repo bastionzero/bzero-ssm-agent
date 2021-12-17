@@ -114,9 +114,6 @@ func start(log logger.T, instanceIDPtr *string, regionPtr *string, shouldCheckHi
 	// If response is positive, start the agent, else retry and eventually back off (hibernate/passive mode).
 	if status, hibernationErr := healthModule.GetAgentState(); shouldCheckHibernation && status == health.Passive {
 		// Starting hibernate mode
-		// context.Log().Info("Hit hibernation error, returning: %s", hibernationErr)
-		// // err = startAgent(ssmAgent, context)
-		// return
 		context.Log().Info("Entering SSM Agent hibernate - ", hibernationErr)
 		go func() {
 			hibernateState.ExecuteHibernation()

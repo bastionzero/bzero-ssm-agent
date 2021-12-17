@@ -20,7 +20,7 @@ const (
 	BZeroConfigStorage    = "BZeroConfig"
 	BZeroRegErrorExitCode = 234
 
-	registrationEndpoint = "api/v1/ssm/register"
+	registrationEndpoint = "api/v2/ssm/register"
 	prodServiceUrl       = "https://cloud.bastionzero.com/" // default
 )
 
