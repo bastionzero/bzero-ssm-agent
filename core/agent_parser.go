@@ -27,10 +27,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
-	keysplitting "github.com/aws/amazon-ssm-agent/agent/keysplitting"
+	bzeroreg "github.com/aws/amazon-ssm-agent/agent/bzero/registration"
 	logger "github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/fingerprint"
 	"github.com/aws/amazon-ssm-agent/agent/managedInstances/registration"
@@ -51,10 +52,6 @@ func parseFlags() {
 	flag.StringVar(&region, regionFlag, "", "")
 	flag.BoolVar(&agentVersionFlag, versionFlag, false, "")
 
-	// OrgID flag
-	flag.StringVar(&orgID, orgIDFlag, "", "")
-	flag.StringVar(&orgProvider, orgProviderFlag, "", "")
-
 	// clear registration
 	flag.BoolVar(&clear, "clear", false, "")
 
@@ -67,6 +64,25 @@ func parseFlags() {
 
 	// Show bzeroInfo flag
 	flag.BoolVar(&bzeroInfo, bzeroInfoFlag, false, "")
+
+	// BZero Registration values
+
+	// Registration Secret
+	flag.StringVar(&bzeroRegistrationKey, bzeroRegistrationKeyFlag, "", "")
+
+	// Users can specify either an environment name or id. If none provided, defaults to default env
+	flag.StringVar(&bzeroEnvName, bzeroEnvNameFlag, "", "")
+	flag.StringVar(&bzeroEnvID, bzeroEnvIDFlag, "", "")
+
+	// Target name, defaults to hostname
+	flag.StringVar(&bzeroTargetName, bzeroTargetNameFlag, "", "")
+
+	// Optional registration url, for deploying in dev or on stage.  Defaults to prod.
+	flag.StringVar(&bzeroServiceUrl, bzeroServiceUrlFlag, "", "")
+
+	// BZero Org flags
+	flag.StringVar(&orgID, orgIDFlag, "", "")
+	flag.StringVar(&orgProvider, orgProviderFlag, "", "")
 
 	flag.Parse()
 }
@@ -85,18 +101,18 @@ func handleBZeroInfo() {
 func printBZeroPubKey() {
 	bzeroConfig := map[string]string{}
 
-	config, err := vault.Retrieve(keysplitting.BZeroConfig)
+	config, err := vault.Retrieve(bzeroreg.BZeroConfigStorage)
 	if err != nil {
-		fmt.Printf("Error retriving BZero config: %v", err)
-		os.Exit(1)
+		fmt.Printf("Error Retrieving BZero Config: %v", err)
+		os.Exit(bzeroreg.BZeroRegErrorExitCode)
 	} else if config == nil {
-		fmt.Printf("BZero Config file is empty!")
-		os.Exit(1)
+		fmt.Printf("BZero Config File is Empty!")
+		os.Exit(bzeroreg.BZeroRegErrorExitCode)
 	}
 
 	// Unmarshal the retrieved data
 	if err := json.Unmarshal([]byte(config), &bzeroConfig); err != nil {
-		fmt.Printf("Error retriving BZero config: %v", err)
+		fmt.Printf("Error Retrieving BZero Config: %v", err)
 		os.Exit(1)
 	}
 
@@ -107,7 +123,7 @@ func printBZeroInfo(info string) {
 	fmt.Printf("[BZeroAgentInfo]%s\n", info)
 }
 
-func bzeroInit(log logger.T) {
+func bzeroInit(log logger.T) (exitCode int) {
 	// BZero Init function to:
 	//  * Verify orgProvider, if custom
 	//  * Generate Pub/Priv keypair
@@ -118,8 +134,8 @@ func bzeroInit(log logger.T) {
 
 	// Catch any errors that might have been generated
 	if err != nil {
-		log.Errorf("BZero Generation of Keys Failed: %v", err)
-		os.Exit(1)
+		log.Errorf("BZero Key Generation Failed: %v", err)
+		return bzeroreg.BZeroRegErrorExitCode
 	}
 
 	// Convert our keys to hex format before storing it
@@ -134,33 +150,105 @@ func bzeroInit(log logger.T) {
 	}
 	data, err := json.Marshal(keys)
 	if err != nil {
-		log.Errorf("BZero Marshalling of Keys Failed: %v", err)
-		os.Exit(1)
+		log.Errorf("Marshalling BZero Keys Failed: %v", err)
+		return bzeroreg.BZeroRegErrorExitCode
 	}
 
-	if err = vault.Store(keysplitting.BZeroConfig, data); err != nil {
-		log.Errorf("BZero Storing of Config Failed: %v", err)
-		os.Exit(1)
+	if err = vault.Store(bzeroreg.BZeroConfigStorage, data); err != nil {
+		log.Errorf("Storing Bzero Config Failed: %v", err)
+		return bzeroreg.BZeroRegErrorExitCode
 	}
 
-	log.Info("Successfully created and stored BZero Config!")
+	log.Info("Successfully initialized and stored all BastionZero variables")
+	return 0
+}
+
+func bzeroRegistration(log logger.T) (exitCode int) {
+	// Make registration endpoint API calls
+	log.Info("Making registration request to BastionZero...")
+	resp, err := bzeroreg.Register(log, bzeroRegistrationKey, bzeroEnvName, bzeroEnvID, bzeroTargetName, bzeroServiceUrl)
+	if err != nil {
+		log.Infof("error registering: %s", err)
+		return bzeroreg.BZeroRegErrorExitCode
+	}
+	log.Info("Registration call to BastionZero successful!")
+
+	// save registration response variables locally
+	activationCode = resp.ActivationCode
+	activationID = resp.ActivationId
+	region = resp.ActivationRegion
+
+	// Only assign SSO org ID and provider fields if they were not provided
+	if orgID == "" {
+		orgID = resp.OrgID
+	}
+	if orgProvider == "" {
+		orgProvider = resp.OrgProvider
+	}
+
+	// Do the regular aws registration
+	if code := processRegistration(log); code != 0 {
+		log.Errorf("error processing aws registration")
+		return bzeroreg.BZeroRegErrorExitCode
+	}
+
+	// initialize our bzero variables
+	if code := bzeroInit(log); code != 0 {
+		log.Errorf("error initializing BZero variables")
+		return bzeroreg.BZeroRegErrorExitCode
+	}
+
+	log.Info("Agent fully registered!")
+
+	// reboot agent
+	log.Info("Restarting Agent...")
+	return restartAgent(log)
 }
 
 // handles registration and fingerprint flags
 func handleRegistrationAndFingerprintFlags(log logger.T) {
 	if flag.NFlag() > 0 {
 		exitCode := 1
-		if register {
+
+		// process bzero registration
+		if bzeroRegistrationKey != "" {
+			exitCode = bzeroRegistration(log) // execute a simplified, bzero-specific registration
+		} else if register {
+			exitCode = bzeroInit(log)
 			exitCode = processRegistration(log)
 		} else if fpFlag {
 			exitCode = processFingerprint(log)
 		} else {
 			flagUsage()
 		}
+
 		log.Flush()
 		log.Close()
 		os.Exit(exitCode)
 	}
+}
+
+func restartAgent(log logger.T) int {
+	// test if init or systemd
+	procBytes, err := ioutil.ReadFile("/proc/1/comm")
+	if err != nil {
+		return 1
+	}
+	proc := strings.ReplaceAll(string(procBytes), "\n", "")
+
+	var cmd *exec.Cmd
+	switch proc {
+	case "init":
+		cmd = exec.Command("restart", "bzero-ssm-agent")
+	case "systemd":
+		cmd = exec.Command("systemctl", "restart", "bzero-ssm-agent")
+	default:
+		log.Errorf("Error: cannot start agent unknown service manager (only systemd and init are supported)")
+		return 1
+	}
+
+	cmd.Run()
+	return 0
 }
 
 // handles agent version flag.
@@ -178,9 +266,9 @@ func handleAgentVersionFlag() {
 func flagUsage() {
 	fmt.Fprintln(os.Stderr, "\n\nCommand-line Usage:")
 	fmt.Fprintln(os.Stderr, "\t-register\tregister managed instance")
-	fmt.Fprintln(os.Stderr, "\t\t-id\tSSM activation ID    \t(REQUIRED)")
-	fmt.Fprintln(os.Stderr, "\t\t-code\tSSM activation code\t(REQUIRED)")
-	fmt.Fprintln(os.Stderr, "\t\t-region\tSSM region       \t(REQUIRED)")
+	fmt.Fprintln(os.Stderr, "\t\t-id\tSSM activation ID")
+	fmt.Fprintln(os.Stderr, "\t\t-code\tSSM activation code")
+	fmt.Fprintln(os.Stderr, "\t\t-region\tSSM region")
 	fmt.Fprintln(os.Stderr, "\n\t\t-clear\tClears the previously saved SSM registration")
 	fmt.Fprintln(os.Stderr, "\t-fingerprint\tWhether to update the machine fingerprint similarity threshold\t(OPTIONAL)")
 	fmt.Fprintln(os.Stderr, "\t\t-similarityThreshold\tThe new required percentage of matching hardware values\t(OPTIONAL)")
@@ -197,9 +285,6 @@ func processRegistration(log logger.T) (exitCode int) {
 		flagUsage()
 		return 1
 	}
-
-	// Generate our keys, and store that with our org Id
-	bzeroInit(log)
 
 	// check if previously registered
 	if !force && registration.InstanceID() != "" {
@@ -264,7 +349,6 @@ func registerManagedInstance(log logger.T) (managedInstanceID string, err error)
 		keyType,
 		fingerprint,
 	)
-
 	if err != nil {
 		return managedInstanceID, fmt.Errorf("error registering the instance with AWS SSM. %v", err)
 	}

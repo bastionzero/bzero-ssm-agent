@@ -179,7 +179,7 @@ func getInstanceInfo() instanceInfo {
 	if loadedServerInfo.InstanceID == "" {
 		if err := loadServerInfo(); err != nil {
 			logger := ssmlog.SSMLogger(false)
-			logger.Warnf("error while loading server info", err)
+			logger.Debugf("Error while loading server info. %v", err)
 		}
 	}
 	lock.RLock()

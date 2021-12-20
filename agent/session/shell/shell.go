@@ -92,6 +92,7 @@ func NewPlugin(context context.T, name string) (*ShellPlugin, error) {
 		logger: logger{
 			ptyTerminated:               make(chan bool),
 			cloudWatchStreamingFinished: make(chan bool),
+			streamLogsToCloudWatch:      false,
 		},
 	}
 	return &plugin, nil

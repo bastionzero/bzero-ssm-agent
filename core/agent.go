@@ -38,20 +38,31 @@ const (
 	activationCodeFlag      = "code"
 	activationIDFlag        = "id"
 	regionFlag              = "region"
-	orgIDFlag               = "org"
-	orgProviderFlag         = "orgProvider"
 	registerFlag            = "register"
 	versionFlag             = "version"
 	fingerprintFlag         = "fingerprint"
 	similarityThresholdFlag = "similarityThreshold"
-	bzeroInfoFlag           = "bzeroInfo"
+
+	// BZero const
+	bzeroInfoFlag            = "bzeroInfo"
+	bzeroRegistrationKeyFlag = "registrationKey"
+	bzeroEnvNameFlag         = "envName"
+	bzeroEnvIDFlag           = "envID"
+	bzeroTargetNameFlag      = "targetName"
+	bzeroServiceUrlFlag      = "serviceUrl"
+	orgIDFlag                = "org"
+	orgProviderFlag          = "orgProvider"
 )
 
 var (
-	activationCode, activationID, region, orgID, orgProvider    string
-	register, clear, force, fpFlag, agentVersionFlag, bzeroInfo bool
-	similarityThreshold                                         int
-	registrationFile                                            = filepath.Join(appconfig.DefaultDataStorePath, "registration")
+	activationCode, activationID, region                string // aws activation args
+	orgID, orgProvider                                  string
+	bzeroRegistrationKey, bzeroEnvName, bzeroTargetName string // bzero args
+	bzeroEnvID, bzeroServiceUrl                         string
+	bzeroInfo                                           bool // bzero args
+	register, clear, force, fpFlag, agentVersionFlag    bool
+	similarityThreshold                                 int
+	registrationFile                                    = filepath.Join(appconfig.DefaultDataStorePath, "registration")
 )
 
 func start(log logger.T) (app.CoreAgent, logger.T, error) {
@@ -63,10 +74,10 @@ func start(log logger.T) (app.CoreAgent, logger.T, error) {
 		return nil, log, err
 	}
 
-	context = context.With("[amazon-ssm-agent]")
+	context = context.With("[bzero-ssm-agent]")
 	message := messagebus.NewMessageBus(context)
 	if err := message.Start(); err != nil {
-		return nil, log, fmt.Errorf("failed to start message bus, %s", err)
+		return nil, log, fmt.Errorf("Failed to start message bus, %s", err)
 	}
 
 	ssmAgentCore := app.NewSSMCoreAgent(context, message)
@@ -98,7 +109,7 @@ func run(log logger.T) {
 		// recover in case the agent panics
 		// this should handle some kind of seg fault errors.
 		if msg := recover(); msg != nil {
-			log.Errorf("core Agent crashed with message %v!", msg)
+			log.Errorf("Core Agent crashed with message %v!", msg)
 			log.Errorf("%s: %s", msg, debug.Stack())
 		}
 	}()
@@ -106,7 +117,7 @@ func run(log logger.T) {
 	// run ssm agent
 	coreAgent, contextLog, err := start(log)
 	if err != nil {
-		contextLog.Errorf("error occurred when starting amazon-ssm-agent: %v", err)
+		contextLog.Errorf("Error occurred when starting bzero-ssm-agent: %v", err)
 		return
 	}
 	blockUntilSignaled(contextLog)
