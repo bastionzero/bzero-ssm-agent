@@ -139,6 +139,8 @@ func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response,
 		// If the status code is unauthorized, do not attempt to retry
 		if response.StatusCode == http.StatusInternalServerError || response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusNotFound {
 			ticker.Stop()
+			log.Info("Registration Endpoint: %s", regUrl)
+			log.Info("Registration Request: %s", string(regInfoBytes))
 			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
 		}
 
