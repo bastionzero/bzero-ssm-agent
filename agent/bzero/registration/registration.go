@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strings"
+	"path"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -60,9 +60,9 @@ func Register(log logger.T, apiKey string, envName string, envId string, targetN
 	}
 
 	// Build Registration Endpoint
-	regEndpoint := prodServiceUrl + registrationEndpoint
+	regEndpoint := path.Join(prodServiceUrl, registrationEndpoint)
 	if serviceUrl != "" {
-		regEndpoint = fmt.Sprintf("%s/%s", strings.TrimRight(serviceUrl, "/"), registrationEndpoint)
+		regEndpoint = path.Join(serviceUrl, registrationEndpoint)
 	}
 
 	// Register with BastionZero

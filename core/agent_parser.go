@@ -178,7 +178,7 @@ func bzeroRegistration(log logger.T) (exitCode int) {
 	activationID = resp.ActivationId
 	region = resp.ActivationRegion
 
-	// Only assign either or both of the SSO org fields, if they were not provided
+	// Only assign SSO org ID and provider fields if they were not provided
 	if orgID == "" {
 		orgID = resp.OrgID
 	}
