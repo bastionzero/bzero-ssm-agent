@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"time"
@@ -60,13 +61,18 @@ func Register(log logger.T, apiKey string, envName string, envId string, targetN
 	}
 
 	// Build Registration Endpoint
-	regEndpoint := path.Join(prodServiceUrl, registrationEndpoint)
-	if serviceUrl != "" {
-		regEndpoint = path.Join(serviceUrl, registrationEndpoint)
+
+	if serviceUrl == "" {
+		serviceUrl = prodServiceUrl
 	}
+	u, err := url.Parse(serviceUrl)
+	if err != nil {
+		return response, fmt.Errorf("could not parse service url: %s error: %s", serviceUrl, err)
+	}
+	u.Path = path.Join(u.Path, registrationEndpoint)
 
 	// Register with BastionZero
-	resp, err := post(log, regInfo, regEndpoint)
+	resp, err := post(log, regInfo, u.String())
 	if err != nil {
 		return response, err
 	}
