@@ -113,19 +113,11 @@ func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response,
 	// Declare our variables
 	var response *http.Response
 
-	// Build request
+	// Marshal the regInfo data so we don't do it every time
 	regInfoBytes, err := json.Marshal(regInfo)
 	if err != nil {
 		return response, fmt.Errorf("could not marshal registration request")
 	}
-	req, err := http.NewRequest("POST", regUrl, bytes.NewBuffer(regInfoBytes))
-	if err != nil {
-		return response, fmt.Errorf("Error creating new http request: %v", err)
-	}
-
-	// Headers
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Content-Type", "application/json")
 
 	// Keep looping through our ticker, waiting for it to tell us when to retry
 	for range ticker.C {
@@ -134,13 +126,28 @@ func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response,
 			Timeout: time.Second * 10,
 		}
 
+		// Build request
+		req, err := http.NewRequest("POST", regUrl, bytes.NewBuffer(regInfoBytes))
+		if err != nil {
+			return response, fmt.Errorf("Error creating new http request: %v", err)
+		}
+
+		// Headers
+		req.Header.Add("Accept", "application/json")
+		req.Header.Add("Content-Type", "application/json")
+
 		response, err = httpClient.Do(req)
 
 		// If the status code is unauthorized, do not attempt to retry
-		if response.StatusCode == http.StatusInternalServerError || response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusNotFound {
+		if response.StatusCode == http.StatusInternalServerError ||
+			response.StatusCode == http.StatusBadRequest ||
+			response.StatusCode == http.StatusNotFound ||
+			response.StatusCode == http.StatusUnauthorized ||
+			response.StatusCode == http.StatusUnsupportedMediaType {
+
 			ticker.Stop()
-			log.Info("Registration Endpoint: %s", regUrl)
-			log.Info("Registration Request: %s", string(regInfoBytes))
+			log.Infof("Registration Endpoint: %s", regUrl)
+			log.Infof("Registration Request Body: %s", string(regInfoBytes))
 			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
 		}
 
