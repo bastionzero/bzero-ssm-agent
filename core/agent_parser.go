@@ -164,6 +164,12 @@ func bzeroInit(log logger.T) (exitCode int) {
 }
 
 func bzeroRegistration(log logger.T) (exitCode int) {
+	// check to see if the agent is already registered
+	if !force && registration.InstanceID() != "" {
+		log.Info("Agent is already registered, it will not re-register unless provided the -f flag. Restarting...")
+		return restartAgent(log)
+	}
+
 	// Make registration endpoint API calls
 	log.Info("Making registration request to BastionZero...")
 	resp, err := bzeroreg.Register(log, bzeroRegistrationKey, bzeroEnvName, bzeroEnvID, bzeroTargetName, bzeroServiceUrl)
