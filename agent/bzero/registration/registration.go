@@ -123,7 +123,7 @@ func sendRegisterRequest(log logger.T, regInfo BZeroRegRequest, serviceUrl strin
 
 	resp, err := sendRequestWithRetry(log, req)
 	if err != nil {
-		return resp, fmt.Errorf("Error creating new http request: %v", err)
+		return resp, err
 	}
 
 	return resp, nil
