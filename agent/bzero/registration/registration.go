@@ -21,8 +21,9 @@ const (
 	BZeroConfigStorage    = "BZeroConfig"
 	BZeroRegErrorExitCode = 234
 
-	registrationEndpoint = "api/v2/targets/ssm/register"
-	prodServiceUrl       = "https://cloud.bastionzero.com/" // default
+	registrationEndpoint         = "targets/ssm/register"
+	prodServiceUrl               = "https://cloud.bastionzero.com/" // default
+	getConnectionServiceEndpoint = "/api/v2/connection-service/url"
 )
 
 // This is the data sent to the Reg API
@@ -43,6 +44,10 @@ type BZeroRegResponse struct {
 	OrgProvider      string `json:"externalOrganizationProvider"`
 }
 
+type GetConnectionServiceResponse struct {
+	ConnectionServiceUrl string `json:"connectionServiceUrl"`
+}
+
 // Attempts to register as many times as is acceptable
 func Register(log logger.T, apiKey string, envName string, envId string, targetName string, serviceUrl string) (BZeroRegResponse, error) {
 	var response BZeroRegResponse
@@ -60,19 +65,8 @@ func Register(log logger.T, apiKey string, envName string, envId string, targetN
 		EnvName:    envName,
 	}
 
-	// Build Registration Endpoint
-
-	if serviceUrl == "" {
-		serviceUrl = prodServiceUrl
-	}
-	u, err := url.Parse(serviceUrl)
-	if err != nil {
-		return response, fmt.Errorf("could not parse service url: %s error: %s", serviceUrl, err)
-	}
-	u.Path = path.Join(u.Path, registrationEndpoint)
-
 	// Register with BastionZero
-	resp, err := post(log, regInfo, u.String())
+	resp, err := sendRegisterRequest(log, regInfo, serviceUrl)
 	if err != nil {
 		return response, err
 	}
@@ -93,7 +87,7 @@ func Register(log logger.T, apiKey string, envName string, envId string, targetN
 	return response, nil
 }
 
-func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response, error) {
+func sendRegisterRequest(log logger.T, regInfo BZeroRegRequest, serviceUrl string) (*http.Response, error) {
 	// Default params
 	// Ref: https://github.com/cenkalti/backoff/blob/a78d3804c2c84f0a3178648138442c9b07665bda/exponential.go#L76
 	// DefaultInitialInterval     = 500 * time.Millisecond
@@ -121,13 +115,31 @@ func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response,
 
 	// Keep looping through our ticker, waiting for it to tell us when to retry
 	for range ticker.C {
-		// Make our Client
+
+		// Make our http Client
 		var httpClient = &http.Client{
 			Timeout: time.Second * 10,
 		}
 
+		// Build Registration Endpoint
+		if serviceUrl == "" {
+			serviceUrl = prodServiceUrl
+		}
+		regUrl, err := url.Parse(serviceUrl)
+		if err != nil {
+			return response, fmt.Errorf("could not parse service url: %s error: %s", serviceUrl, err)
+		}
+
+		// Get connection service url from bastion
+		connectionServiceUrl, connectionServiceUrlErr := getConnectionServiceUrlFromServiceUrl(log, httpClient, serviceUrl)
+		if connectionServiceUrlErr != nil {
+			return &http.Response{}, connectionServiceUrlErr
+		}
+
+		regUrl.Path = path.Join(regUrl.Path, registrationEndpoint)
+
 		// Build request
-		req, err := http.NewRequest("POST", regUrl, bytes.NewBuffer(regInfoBytes))
+		req, err := http.NewRequest("POST", connectionServiceUrl, bytes.NewBuffer(regInfoBytes))
 		if err != nil {
 			return response, fmt.Errorf("Error creating new http request: %v", err)
 		}
@@ -185,4 +197,27 @@ func missingResponseFields(resp BZeroRegResponse) ([]string, bool) {
 	}
 
 	return missing, len(missing) == 0
+}
+
+func getConnectionServiceUrlFromServiceUrl(log logger.T, httpClient *http.Client, serviceUrl string) (string, error) {
+	// Make request to bastion to get connection service url
+	endpointToHit := path.Join(serviceUrl, getConnectionServiceEndpoint)
+
+	resp, httpErr := httpClient.Get(endpointToHit)
+	if httpErr != nil {
+		return "", fmt.Errorf("error making get request to get connection service url")
+	}
+
+	// Unmarshal the response
+	respBytes, readAllErr := ioutil.ReadAll(resp.Body)
+	if readAllErr != nil {
+		return "", fmt.Errorf("error reading body on get connection service url request")
+	}
+
+	var getConnectionServiceResponse GetConnectionServiceResponse
+	if err := json.Unmarshal(respBytes, &getConnectionServiceResponse); err != nil {
+		return "", fmt.Errorf("malformed getConnectionService response: %s", err)
+	}
+
+	return getConnectionServiceResponse.ConnectionServiceUrl, nil
 }
