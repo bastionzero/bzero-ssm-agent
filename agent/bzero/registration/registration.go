@@ -3,7 +3,6 @@ package registration
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -21,8 +20,9 @@ const (
 	BZeroConfigStorage    = "BZeroConfig"
 	BZeroRegErrorExitCode = 234
 
-	registrationEndpoint = "api/v2/targets/ssm/register"
-	prodServiceUrl       = "https://cloud.bastionzero.com/" // default
+	registrationEndpoint         = "targets/ssm/register"
+	prodServiceUrl               = "https://cloud.bastionzero.com/" // default
+	getConnectionServiceEndpoint = "api/v2/connection-service/url"
 )
 
 // This is the data sent to the Reg API
@@ -43,6 +43,10 @@ type BZeroRegResponse struct {
 	OrgProvider      string `json:"externalOrganizationProvider"`
 }
 
+type GetConnectionServiceResponse struct {
+	ConnectionServiceUrl string `json:"connectionServiceUrl"`
+}
+
 // Attempts to register as many times as is acceptable
 func Register(log logger.T, apiKey string, envName string, envId string, targetName string, serviceUrl string) (BZeroRegResponse, error) {
 	var response BZeroRegResponse
@@ -60,19 +64,8 @@ func Register(log logger.T, apiKey string, envName string, envId string, targetN
 		EnvName:    envName,
 	}
 
-	// Build Registration Endpoint
-
-	if serviceUrl == "" {
-		serviceUrl = prodServiceUrl
-	}
-	u, err := url.Parse(serviceUrl)
-	if err != nil {
-		return response, fmt.Errorf("could not parse service url: %s error: %s", serviceUrl, err)
-	}
-	u.Path = path.Join(u.Path, registrationEndpoint)
-
 	// Register with BastionZero
-	resp, err := post(log, regInfo, u.String())
+	resp, err := sendRegisterRequest(log, regInfo, serviceUrl)
 	if err != nil {
 		return response, err
 	}
@@ -93,23 +86,7 @@ func Register(log logger.T, apiKey string, envName string, envId string, targetN
 	return response, nil
 }
 
-func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response, error) {
-	// Default params
-	// Ref: https://github.com/cenkalti/backoff/blob/a78d3804c2c84f0a3178648138442c9b07665bda/exponential.go#L76
-	// DefaultInitialInterval     = 500 * time.Millisecond
-	// DefaultRandomizationFactor = 0.5
-	// DefaultMultiplier          = 1.5
-	// DefaultMaxInterval         = 60 * time.Second
-	// DefaultMaxElapsedTime      = 15 * time.Minute
-
-	// Define our exponential backoff params
-	backoffParams := backoff.NewExponentialBackOff()
-	backoffParams.MaxElapsedTime = time.Hour * 4 // Wait in total at most 4 hours
-	backoffParams.MaxInterval = time.Hour        // At most 1 hour in between requests
-
-	// Make our ticker
-	ticker := backoff.NewTicker(backoffParams)
-
+func sendRegisterRequest(log logger.T, regInfo BZeroRegRequest, serviceUrl string) (*http.Response, error) {
 	// Declare our variables
 	var response *http.Response
 
@@ -119,47 +96,37 @@ func post(log logger.T, regInfo BZeroRegRequest, regUrl string) (*http.Response,
 		return response, fmt.Errorf("could not marshal registration request")
 	}
 
-	// Keep looping through our ticker, waiting for it to tell us when to retry
-	for range ticker.C {
-		// Make our Client
-		var httpClient = &http.Client{
-			Timeout: time.Second * 10,
-		}
+	// Build Registration Endpoint
+	if serviceUrl == "" {
+		serviceUrl = prodServiceUrl
+	}
 
-		// Build request
-		req, err := http.NewRequest("POST", regUrl, bytes.NewBuffer(regInfoBytes))
-		if err != nil {
-			return response, fmt.Errorf("Error creating new http request: %v", err)
-		}
+	log.Infof("Using service url %s", serviceUrl)
 
-		// Headers
-		req.Header.Add("Accept", "application/json")
-		req.Header.Add("Content-Type", "application/json")
+	// Get connection service url from bastion
+	connectionServiceUrl, connectionServiceUrlErr := getConnectionServiceUrlFromServiceUrl(log, serviceUrl)
+	if connectionServiceUrlErr != nil {
+		return &http.Response{}, connectionServiceUrlErr
+	}
 
-		response, err = httpClient.Do(req)
+	u, err := url.Parse(connectionServiceUrl)
+	if err != nil {
+		return response, fmt.Errorf("could not parse connection service url: %s error: %s", connectionServiceUrl, err)
+	}
+	u.Path = path.Join(u.Path, registrationEndpoint)
 
-		// If the status code is unauthorized, do not attempt to retry
-		if response.StatusCode == http.StatusInternalServerError ||
-			response.StatusCode == http.StatusBadRequest ||
-			response.StatusCode == http.StatusNotFound ||
-			response.StatusCode == http.StatusUnauthorized ||
-			response.StatusCode == http.StatusUnsupportedMediaType {
-
-			ticker.Stop()
-			log.Infof("Registration Endpoint: %s", regUrl)
-			log.Infof("Registration Request Body: %s", string(regInfoBytes))
-			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
-		}
-
-		if err != nil || response.StatusCode != http.StatusOK {
-			continue
-		}
-
-		ticker.Stop()
+	log.Infof("Registration Request Body: %s", string(regInfoBytes))
+	req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer(regInfoBytes))
+	if err != nil {
 		return response, err
 	}
 
-	return nil, errors.New("unable to make post request")
+	resp, err := sendRequestWithRetry(log, req)
+	if err != nil {
+		return resp, err
+	}
+
+	return resp, nil
 }
 
 func missingResponseFields(resp BZeroRegResponse) ([]string, bool) {
@@ -185,4 +152,89 @@ func missingResponseFields(resp BZeroRegResponse) ([]string, bool) {
 	}
 
 	return missing, len(missing) == 0
+}
+
+func sendRequestWithRetry(log logger.T, req *http.Request) (*http.Response, error) {
+	// Default params
+	// Ref: https://github.com/cenkalti/backoff/blob/a78d3804c2c84f0a3178648138442c9b07665bda/exponential.go#L76
+	// DefaultInitialInterval     = 500 * time.Millisecond
+	// DefaultRandomizationFactor = 0.5
+	// DefaultMultiplier          = 1.5
+	// DefaultMaxInterval         = 60 * time.Second
+	// DefaultMaxElapsedTime      = 15 * time.Minute
+
+	// Define our exponential backoff params
+	backoffParams := backoff.NewExponentialBackOff()
+	backoffParams.MaxElapsedTime = time.Hour * 4 // Wait in total at most 4 hours
+	backoffParams.MaxInterval = time.Hour        // At most 1 hour in between requests
+
+	// Make our ticker
+	ticker := backoff.NewTicker(backoffParams)
+
+	for range ticker.C {
+
+		// Make our http Client
+		var httpClient = &http.Client{
+			Timeout: time.Second * 10,
+		}
+
+		// Headers
+		req.Header.Add("Accept", "application/json")
+		req.Header.Add("Content-Type", "application/json")
+
+		log.Infof("Sending request to: %s", req.URL)
+		response, err := httpClient.Do(req)
+
+		// If the status code is unauthorized, do not attempt to retry
+		if response.StatusCode == http.StatusInternalServerError ||
+			response.StatusCode == http.StatusBadRequest ||
+			response.StatusCode == http.StatusNotFound ||
+			response.StatusCode == http.StatusUnauthorized ||
+			response.StatusCode == http.StatusUnsupportedMediaType {
+
+			ticker.Stop()
+			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
+		}
+
+		if err != nil || response.StatusCode != http.StatusOK {
+			continue
+		}
+
+		ticker.Stop()
+		return response, err
+	}
+
+	return nil, fmt.Errorf("Failed to successfully make request to: %s", req.URL)
+}
+
+func getConnectionServiceUrlFromServiceUrl(log logger.T, serviceUrl string) (string, error) {
+	// Make request to bastion to get connection service url
+	u, err := url.Parse(serviceUrl)
+	if err != nil {
+		return "", fmt.Errorf("could not parse service url: %s error: %s", serviceUrl, err)
+	}
+	u.Path = path.Join(u.Path, getConnectionServiceEndpoint)
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := sendRequestWithRetry(log, req)
+	if err != nil {
+		return "", err
+	}
+
+	// Unmarshal the response
+	respBytes, readAllErr := ioutil.ReadAll(resp.Body)
+	if readAllErr != nil {
+		return "", fmt.Errorf("error reading body on get connection service url request: %v", readAllErr)
+	}
+
+	var getConnectionServiceResponse GetConnectionServiceResponse
+	if err := json.Unmarshal(respBytes, &getConnectionServiceResponse); err != nil {
+		return "", fmt.Errorf("malformed getConnectionService response: %s", err)
+	}
+
+	return getConnectionServiceResponse.ConnectionServiceUrl, nil
 }

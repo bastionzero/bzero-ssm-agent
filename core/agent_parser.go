@@ -166,7 +166,7 @@ func bzeroInit(log logger.T) (exitCode int) {
 func bzeroRegistration(log logger.T) (exitCode int) {
 	// check to see if the agent is already registered
 	if !force && registration.InstanceID() != "" {
-		log.Info("Agent is already registered, it will not re-register unless provided the -f flag. Restarting...")
+		log.Info("Agent is already registered, it will not re-register unless provided the -y flag. Restarting...")
 		return restartAgent(log)
 	}
 
