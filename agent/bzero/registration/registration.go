@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"time"
@@ -100,14 +101,22 @@ func sendRegisterRequest(log logger.T, regInfo BZeroRegRequest, serviceUrl strin
 		serviceUrl = prodServiceUrl
 	}
 
+	log.Infof("Using service url %s", serviceUrl)
+
 	// Get connection service url from bastion
 	connectionServiceUrl, connectionServiceUrlErr := getConnectionServiceUrlFromServiceUrl(log, serviceUrl)
 	if connectionServiceUrlErr != nil {
 		return &http.Response{}, connectionServiceUrlErr
 	}
 
-	registerUrl := path.Join(connectionServiceUrl, registrationEndpoint)
-	req, err := http.NewRequest("POST", registerUrl, bytes.NewBuffer(regInfoBytes))
+	u, err := url.Parse(connectionServiceUrl)
+	if err != nil {
+		return response, fmt.Errorf("could not parse connection service url: %s error: %s", connectionServiceUrl, err)
+	}
+	u.Path = path.Join(u.Path, registrationEndpoint)
+
+	log.Infof("Registration Request Body: %s", string(regInfoBytes))
+	req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer(regInfoBytes))
 	if err != nil {
 		return response, err
 	}
@@ -173,7 +182,7 @@ func sendRequestWithRetry(log logger.T, req *http.Request) (*http.Response, erro
 		req.Header.Add("Accept", "application/json")
 		req.Header.Add("Content-Type", "application/json")
 
-		log.Info("Sending request to: %s", req.URL)
+		log.Infof("Sending request to: %s", req.URL)
 		response, err := httpClient.Do(req)
 
 		// If the status code is unauthorized, do not attempt to retry
@@ -200,9 +209,13 @@ func sendRequestWithRetry(log logger.T, req *http.Request) (*http.Response, erro
 
 func getConnectionServiceUrlFromServiceUrl(log logger.T, serviceUrl string) (string, error) {
 	// Make request to bastion to get connection service url
-	endpointToHit := path.Join(serviceUrl, getConnectionServiceEndpoint)
+	u, err := url.Parse(serviceUrl)
+	if err != nil {
+		return "", fmt.Errorf("could not parse service url: %s error: %s", serviceUrl, err)
+	}
+	u.Path = path.Join(u.Path, getConnectionServiceEndpoint)
 
-	req, err := http.NewRequest("GET", endpointToHit, nil)
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return "", err
 	}
