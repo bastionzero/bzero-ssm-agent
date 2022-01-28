@@ -3,11 +3,9 @@ package registration
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"time"
@@ -88,22 +86,6 @@ func Register(log logger.T, apiKey string, envName string, envId string, targetN
 }
 
 func sendRegisterRequest(log logger.T, regInfo BZeroRegRequest, serviceUrl string) (*http.Response, error) {
-	// Default params
-	// Ref: https://github.com/cenkalti/backoff/blob/a78d3804c2c84f0a3178648138442c9b07665bda/exponential.go#L76
-	// DefaultInitialInterval     = 500 * time.Millisecond
-	// DefaultRandomizationFactor = 0.5
-	// DefaultMultiplier          = 1.5
-	// DefaultMaxInterval         = 60 * time.Second
-	// DefaultMaxElapsedTime      = 15 * time.Minute
-
-	// Define our exponential backoff params
-	backoffParams := backoff.NewExponentialBackOff()
-	backoffParams.MaxElapsedTime = time.Hour * 4 // Wait in total at most 4 hours
-	backoffParams.MaxInterval = time.Hour        // At most 1 hour in between requests
-
-	// Make our ticker
-	ticker := backoff.NewTicker(backoffParams)
-
 	// Declare our variables
 	var response *http.Response
 
@@ -113,65 +95,29 @@ func sendRegisterRequest(log logger.T, regInfo BZeroRegRequest, serviceUrl strin
 		return response, fmt.Errorf("could not marshal registration request")
 	}
 
-	// Keep looping through our ticker, waiting for it to tell us when to retry
-	for range ticker.C {
+	// Build Registration Endpoint
+	if serviceUrl == "" {
+		serviceUrl = prodServiceUrl
+	}
 
-		// Make our http Client
-		var httpClient = &http.Client{
-			Timeout: time.Second * 10,
-		}
+	// Get connection service url from bastion
+	connectionServiceUrl, connectionServiceUrlErr := getConnectionServiceUrlFromServiceUrl(log, serviceUrl)
+	if connectionServiceUrlErr != nil {
+		return &http.Response{}, connectionServiceUrlErr
+	}
 
-		// Build Registration Endpoint
-		if serviceUrl == "" {
-			serviceUrl = prodServiceUrl
-		}
-		regUrl, err := url.Parse(serviceUrl)
-		if err != nil {
-			return response, fmt.Errorf("could not parse service url: %s error: %s", serviceUrl, err)
-		}
-
-		// Get connection service url from bastion
-		connectionServiceUrl, connectionServiceUrlErr := getConnectionServiceUrlFromServiceUrl(log, httpClient, serviceUrl)
-		if connectionServiceUrlErr != nil {
-			return &http.Response{}, connectionServiceUrlErr
-		}
-
-		regUrl.Path = path.Join(regUrl.Path, registrationEndpoint)
-
-		// Build request
-		req, err := http.NewRequest("POST", connectionServiceUrl, bytes.NewBuffer(regInfoBytes))
-		if err != nil {
-			return response, fmt.Errorf("Error creating new http request: %v", err)
-		}
-
-		// Headers
-		req.Header.Add("Accept", "application/json")
-		req.Header.Add("Content-Type", "application/json")
-
-		response, err = httpClient.Do(req)
-
-		// If the status code is unauthorized, do not attempt to retry
-		if response.StatusCode == http.StatusInternalServerError ||
-			response.StatusCode == http.StatusBadRequest ||
-			response.StatusCode == http.StatusNotFound ||
-			response.StatusCode == http.StatusUnauthorized ||
-			response.StatusCode == http.StatusUnsupportedMediaType {
-
-			ticker.Stop()
-			log.Infof("Registration Endpoint: %s", regUrl)
-			log.Infof("Registration Request Body: %s", string(regInfoBytes))
-			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
-		}
-
-		if err != nil || response.StatusCode != http.StatusOK {
-			continue
-		}
-
-		ticker.Stop()
+	registerUrl := path.Join(connectionServiceUrl, registrationEndpoint)
+	req, err := http.NewRequest("POST", registerUrl, bytes.NewBuffer(regInfoBytes))
+	if err != nil {
 		return response, err
 	}
 
-	return nil, errors.New("unable to make post request")
+	resp, err := sendRequestWithRetry(log, req)
+	if err != nil {
+		return resp, fmt.Errorf("Error creating new http request: %v", err)
+	}
+
+	return resp, nil
 }
 
 func missingResponseFields(resp BZeroRegResponse) ([]string, bool) {
@@ -199,15 +145,71 @@ func missingResponseFields(resp BZeroRegResponse) ([]string, bool) {
 	return missing, len(missing) == 0
 }
 
-func getConnectionServiceUrlFromServiceUrl(log logger.T, httpClient *http.Client, serviceUrl string) (string, error) {
+func sendRequestWithRetry(log logger.T, req *http.Request) (*http.Response, error) {
+	// Default params
+	// Ref: https://github.com/cenkalti/backoff/blob/a78d3804c2c84f0a3178648138442c9b07665bda/exponential.go#L76
+	// DefaultInitialInterval     = 500 * time.Millisecond
+	// DefaultRandomizationFactor = 0.5
+	// DefaultMultiplier          = 1.5
+	// DefaultMaxInterval         = 60 * time.Second
+	// DefaultMaxElapsedTime      = 15 * time.Minute
+
+	// Define our exponential backoff params
+	backoffParams := backoff.NewExponentialBackOff()
+	backoffParams.MaxElapsedTime = time.Hour * 4 // Wait in total at most 4 hours
+	backoffParams.MaxInterval = time.Hour        // At most 1 hour in between requests
+
+	// Make our ticker
+	ticker := backoff.NewTicker(backoffParams)
+
+	for range ticker.C {
+
+		// Make our http Client
+		var httpClient = &http.Client{
+			Timeout: time.Second * 10,
+		}
+
+		// Headers
+		req.Header.Add("Accept", "application/json")
+		req.Header.Add("Content-Type", "application/json")
+
+		log.Info("Sending request to: %s", req.URL)
+		response, err := httpClient.Do(req)
+
+		// If the status code is unauthorized, do not attempt to retry
+		if response.StatusCode == http.StatusInternalServerError ||
+			response.StatusCode == http.StatusBadRequest ||
+			response.StatusCode == http.StatusNotFound ||
+			response.StatusCode == http.StatusUnauthorized ||
+			response.StatusCode == http.StatusUnsupportedMediaType {
+
+			ticker.Stop()
+			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
+		}
+
+		if err != nil || response.StatusCode != http.StatusOK {
+			continue
+		}
+
+		ticker.Stop()
+		return response, err
+	}
+
+	return nil, fmt.Errorf("Failed to successfully make request to: %s", req.URL)
+}
+
+func getConnectionServiceUrlFromServiceUrl(log logger.T, serviceUrl string) (string, error) {
 	// Make request to bastion to get connection service url
 	endpointToHit := path.Join(serviceUrl, getConnectionServiceEndpoint)
 
-	log.Info("Connection Service Endpoint: %s", endpointToHit)
+	req, err := http.NewRequest("GET", endpointToHit, nil)
+	if err != nil {
+		return "", err
+	}
 
-	resp, httpErr := httpClient.Get(endpointToHit)
-	if httpErr != nil {
-		return "", fmt.Errorf("error making get request to get connection service url: %v", httpErr)
+	resp, err := sendRequestWithRetry(log, req)
+	if err != nil {
+		return "", err
 	}
 
 	// Unmarshal the response
