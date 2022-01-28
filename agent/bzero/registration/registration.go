@@ -23,7 +23,7 @@ const (
 
 	registrationEndpoint         = "targets/ssm/register"
 	prodServiceUrl               = "https://cloud.bastionzero.com/" // default
-	getConnectionServiceEndpoint = "/api/v2/connection-service/url"
+	getConnectionServiceEndpoint = "api/v2/connection-service/url"
 )
 
 // This is the data sent to the Reg API
@@ -203,15 +203,17 @@ func getConnectionServiceUrlFromServiceUrl(log logger.T, httpClient *http.Client
 	// Make request to bastion to get connection service url
 	endpointToHit := path.Join(serviceUrl, getConnectionServiceEndpoint)
 
+	log.Info("Connection Service Endpoint: %s", endpointToHit)
+
 	resp, httpErr := httpClient.Get(endpointToHit)
 	if httpErr != nil {
-		return "", fmt.Errorf("error making get request to get connection service url")
+		return "", fmt.Errorf("error making get request to get connection service url: %v", httpErr)
 	}
 
 	// Unmarshal the response
 	respBytes, readAllErr := ioutil.ReadAll(resp.Body)
 	if readAllErr != nil {
-		return "", fmt.Errorf("error reading body on get connection service url request")
+		return "", fmt.Errorf("error reading body on get connection service url request: %v", readAllErr)
 	}
 
 	var getConnectionServiceResponse GetConnectionServiceResponse
