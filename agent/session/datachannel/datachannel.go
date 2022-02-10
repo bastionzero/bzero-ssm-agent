@@ -582,7 +582,6 @@ func (dataChannel *DataChannel) SendKeysplittingMessage(log log.T, payload inter
 	}
 
 	log.Tracef("Send Keysplitting Response Message: %d", payloadBytes)
-	log.Infof("[Keysplitting] Sending %T Message: %v", payload, payloadBytes)
 
 	switch v := payload.(type) {
 	case kysplContracts.SynAckPayload:
