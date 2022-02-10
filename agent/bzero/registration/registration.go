@@ -115,7 +115,6 @@ func sendRegisterRequest(log logger.T, regInfo BZeroRegRequest, serviceUrl strin
 	}
 	u.Path = path.Join(u.Path, registrationEndpoint)
 
-	log.Infof("Registration Request Body: %s", string(regInfoBytes))
 	req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer(regInfoBytes))
 	if err != nil {
 		return response, err
