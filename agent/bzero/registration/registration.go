@@ -181,26 +181,21 @@ func sendRequestWithRetry(log logger.T, req *http.Request) (*http.Response, erro
 		req.Header.Add("Accept", "application/json")
 		req.Header.Add("Content-Type", "application/json")
 
-		log.Infof("Sending request to: %s", req.URL)
-		response, err := httpClient.Do(req)
-
-		// If the status code is unauthorized, do not attempt to retry
-		if response.StatusCode == http.StatusInternalServerError ||
-			response.StatusCode == http.StatusBadRequest ||
-			response.StatusCode == http.StatusNotFound ||
-			response.StatusCode == http.StatusUnauthorized ||
-			response.StatusCode == http.StatusUnsupportedMediaType {
+		log.Infof("Sending request to %s", req.URL)
+		if response, err := httpClient.Do(req); err != nil {
+			continue
+		} else if response.StatusCode == http.StatusUnauthorized ||
+			response.StatusCode == http.StatusUnsupportedMediaType ||
+			response.StatusCode == http.StatusGone {
 
 			ticker.Stop()
-			return response, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
-		}
-
-		if err != nil || response.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
+		} else if response.StatusCode != http.StatusOK {
 			continue
+		} else {
+			ticker.Stop()
+			return response, nil
 		}
-
-		ticker.Stop()
-		return response, err
 	}
 
 	return nil, fmt.Errorf("Failed to successfully make request to: %s", req.URL)
