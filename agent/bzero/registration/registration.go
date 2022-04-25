@@ -174,7 +174,7 @@ func sendRequestWithRetry(log logger.T, req *http.Request) (*http.Response, erro
 
 		// Make our http Client
 		var httpClient = &http.Client{
-			Timeout: time.Second * 10,
+			Timeout: time.Second * 30,
 		}
 
 		// Headers
