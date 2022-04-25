@@ -190,11 +190,11 @@ func sendRequestWithRetry(log logger.T, req *http.Request) (*http.Response, erro
 
 			ticker.Stop()
 			return nil, fmt.Errorf("received response code: %d, not retrying", response.StatusCode)
-		} else if response.StatusCode != http.StatusOK {
-			continue
-		} else {
+		} else if response.StatusCode >= 200 && response.StatusCode < 300 {
 			ticker.Stop()
 			return response, nil
+		} else {
+			continue
 		}
 	}
 
